@@ -1,0 +1,13 @@
+[tool.poetry]
+name = "tp1-machine-learning"
+version = "0.0.1"
+description = "Trabajo practico 1 - Machine Learning"
+
+[tool.poetry.dependencies]
+python = ">=3.11"
+
+
+# use black and isort
+[tool.poetry.dev-dependencies]
+black = "^21.12b0"
+isort = "^5.10.3"
