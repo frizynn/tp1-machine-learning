@@ -1,6 +1,9 @@
 import numpy as np
 import pandas as pd
-from models import LinearRegressor,Model
+
+from models.data import (split_test_train_with_label,
+                         split_test_train_without_label)
+from models.models import Model
 
 
 def round_input(X, columnas):
@@ -45,7 +48,7 @@ def split_by_nan_features(df, nan_features):
 def train_model_for_feature(model_class: Model, X, y, seed=42):
     model = model_class()
 
-    X_train, X_test, y_train, y_test = model.split_data(X, y, test_size=0.2, seed=seed)
+    X_train, X_test, y_train, y_test = split_test_train_with_label(X, y, test_size=0.2, seed=seed)
 
     model.fit(X_train, y_train)
 
