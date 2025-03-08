@@ -4,6 +4,14 @@ from enum import Enum
 from typing import Union, Optional, Dict
 
 
+class FitMethod(Enum):
+    """Enum para los métodos de entrenamiento disponibles."""
+
+    PSEUDO_INVERSE = "pseudo_inverse"
+    GRADIENT_DESCENT = "gradient_descent"
+
+
+
 class Model:
     def fit(self, X: pd.DataFrame, y: pd.Series):
         raise NotImplementedError
@@ -26,6 +34,17 @@ class Model:
         else:
             mse = ((y - y_pred) ** 2).mean()
         return mse
+    
+    def r2_score(self, X: pd.DataFrame, y):
+        """
+        Calcula el coeficiente de determinación R^2 de la predicción.
+        """
+        y_pred = self.predict(X)
+        y_mean = y.mean()
+        ss_total = ((y - y_mean) ** 2).sum()
+        ss_res = ((y - y_pred) ** 2).sum()
+        r2 = 1 - ss_res / ss_total
+        return r2
 
     @staticmethod
     def _build_design_matrix(X: pd.DataFrame, degree: int = 1) -> pd.DataFrame:
@@ -108,12 +127,5 @@ class Model:
         gradient = (2/m) * (X.T @ error)
         
         return gradient
+        
     
-
-
-class FitMethod(Enum):
-    """Enum para los métodos de entrenamiento disponibles."""
-
-    PSEUDO_INVERSE = "pseudo_inverse"
-    GRADIENT_DESCENT = "gradient_descent"
-
