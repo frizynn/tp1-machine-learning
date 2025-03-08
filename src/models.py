@@ -58,7 +58,7 @@ class LinearRegressor(Model):
         self.intercept_ = None
 
     def fit(self, X: pd.DataFrame, y: pd.Series):
-        X_design = self._build_design_matrix(X, degree=1)  # misma función para construir la matriz
+        X_design = self._build_design_matrix(X, degree=1)  
         X_np = X_design.values.astype(float)
         y_np = y.values.astype(float)
         
