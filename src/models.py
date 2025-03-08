@@ -30,12 +30,27 @@ class Model:
         if round:
             y_pred = np.round(y_pred)
         if isinstance(y, pd.DataFrame):
-            # Convertir la predicción a DataFrame para alinear índices y columnas
             y_pred = pd.DataFrame(y_pred, index=y.index, columns=y.columns)
             mse = ((y - y_pred) ** 2).mean().mean()
         else:
             mse = ((y - y_pred) ** 2).mean()
         return mse
+    
+    @staticmethod
+    def _build_design_matrix(X: pd.DataFrame, degree: int = 1) -> pd.DataFrame:
+
+        X = X.reset_index(drop=True)
+        if degree == 1:
+            intercept = pd.DataFrame({'intercept': np.ones(len(X))})
+
+            return pd.concat([intercept, X.reset_index(drop=True)], axis=1)
+        else:
+            X_poly = pd.DataFrame({'intercept': np.ones(len(X))})
+            for i in range(1, degree + 1):
+                for col in X.columns:
+                    X_poly[f"{col}^{i}"] = X[col] ** i
+            return X_poly
+
 
 class LinearRegressor(Model):
     def __init__(self):
@@ -43,29 +58,48 @@ class LinearRegressor(Model):
         self.intercept_ = None
 
     def fit(self, X: pd.DataFrame, y: pd.Series):
-        # Reiniciar índices para asegurar la alineación
-        X = X.reset_index(drop=True)
-        y = y.reset_index(drop=True)
-        
-        # Agregar columna de unos para el intercepto
-        X_with_intercept = pd.DataFrame({
-            'intercept': np.ones(len(X))
-        }).join(X)
-        
-        # Convertir a arrays de numpy para evitar problemas de alineación por índices
-        X_np = X_with_intercept.values.astype(float)
+        X_design = self._build_design_matrix(X, degree=1)  # misma función para construir la matriz
+        X_np = X_design.values.astype(float)
         y_np = y.values.astype(float)
         
-        # Calcular los coeficientes usando la fórmula de la regresión lineal
-        coeffs = np.linalg.inv(X_np.T @ X_np) @ (X_np.T @ y_np)
+
+        coeffs, residuals, rank, s = np.linalg.lstsq(X_np, y_np, rcond=None)
         
-        # Extraer intercepto y coeficientes
         self.intercept_ = coeffs[0]
         self.coef_ = coeffs[1:]
-        
         return self
 
     def predict(self, X: pd.DataFrame):
-        # Asegurarse de que X tenga el formato numérico correcto
-        X_np = X.values.astype(float)
-        return self.intercept_ + X_np @ self.coef_
+        X_design = self._build_design_matrix(X, degree=1)
+        X_np = X_design.values.astype(float)
+        return X_np @ np.concatenate(([self.intercept_], self.coef_))
+
+class PolinomialRegressor(Model):
+    @classmethod
+    def change_degree(cls, degree):
+        cls.default_degree = degree
+        return cls
+
+    def __init__(self, degree=None):
+        if degree is None:
+            degree = getattr(self.__class__, "default_degree", 2)
+        self.degree = degree
+        self.coef_ = None
+        self.intercept_ = None
+
+    def fit(self, X: pd.DataFrame, y: pd.Series):
+        X_design = self._build_design_matrix(X, self.degree)
+        X_np = X_design.values.astype(float)
+        y_np = y.values.astype(float)
+        
+        coeffs, residuals, rank, s = np.linalg.lstsq(X_np, y_np, rcond=None)
+        
+        self.intercept_ = coeffs[0]
+        self.coef_ = coeffs[1:]
+        self.feature_names = X.columns  
+        return self
+
+    def predict(self, X: pd.DataFrame):
+        X_design = self._build_design_matrix(X, self.degree)
+        X_np = X_design.values.astype(float)
+        return X_np @ np.concatenate(([self.intercept_], self.coef_))
