@@ -136,7 +136,7 @@ class PolinomialRegressor(Model):
             
             prev_mse = mse
             
-            # Calcular gradientes y actualizar coeficientes
+            # Calcular gradientes y actualizar coeficientes solo si no ha convergido
             gradients = Model.loss_mse_gradient(X_np, y_np, coeffs)
             coeffs -= lr * gradients
         
@@ -150,7 +150,7 @@ class PolinomialRegressor(Model):
             "params": params,
             "final_epoch": epoch + 1,
             "final_mse": mse,
-            "converged": epoch < epochs - 1,
+            "converged": abs(prev_mse - mse) < tolerance,
             "history": history,
         }
 
