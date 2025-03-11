@@ -13,6 +13,13 @@ class FitMethod(Enum):
 
 
 class Model:
+    def __init__(self):
+        self.coef_ = None
+        self.intercept_ = None
+        self.feature_names = None
+        self._training_info = {}
+        
+
     def fit(self, X: pd.DataFrame, y: pd.Series):
         raise NotImplementedError
 
@@ -61,7 +68,7 @@ class Model:
                     X_poly[f"{col}^{i}"] = X[col] ** i
             return X_poly
 
-    def print_coefficients(self, format_precision: int = 4) -> None:
+    def print_coefficients(self, format_precision: int = 4, metric: str = "MSE"):
         """
         Imprime los coeficientes del modelo con los nombres de sus variables.
 
@@ -69,6 +76,8 @@ class Model:
         -----------
         format_precision : int
             Número de decimales a mostrar
+        metric : str
+            Tipo de error a mostrar (default: "MSE")
         """
         if self.coef_ is None or self.feature_names is None:
             print("El modelo no ha sido entrenado aún.")
@@ -82,9 +91,14 @@ class Model:
         for name, coef in zip(self.feature_names, self.coef_):
             print(f"{name:<15} | {coef:+.{format_precision}f}")
 
-        if "final_mse" in self._training_info:
+        if metric == "MSE" and "final_mse" in self._training_info:
             print(
                 f"\nMSE final: {self._training_info['final_mse']:.{format_precision}f}"
+            )
+
+        if metric == "R2" and "final_r2" in self._training_info:
+            print(
+                f"\nR^2 final: {self._training_info['final_r2']:.{format_precision}f}"
             )
 
         if self._training_info.get("method") == "gradient_descent":
@@ -105,6 +119,7 @@ class Model:
         return self._training_info.copy()
     
     @staticmethod
+    # TODO hacer clases de loss
     def loss_mse(y_true, y_pred):
         
         y_true = np.asarray(y_true)
@@ -123,7 +138,7 @@ class Model:
         y_pred = X @ coeffs
         error = y_pred - y_true
         
-        # El gradiente del MSE es (2/m) * X^T * (X*w - y)
+        # gradiente del MSE es (2/m) * X^T * (X*w - y)
         gradient = (2/m) * (X.T @ error)
         
         return gradient

@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Union, Optional, Dict
-from models.model import Model, FitMethod
-from models.polinomial_regressor import PolinomialRegressor
+from .base import Model, FitMethod
+from .polinomial_regressor import PolinomialRegressor
 import pandas as pd
 import numpy as np
 

@@ -1,11 +1,11 @@
 import numpy as np
 import pandas as pd
 
-from models.data import (
+from models.regression.data import (
     split_test_train_with_label,
     split_test_train_without_label,
 )
-from models.model import (
+from models.regression.base import (
     Model,
 )
 
@@ -26,7 +26,7 @@ def get_nan_features(
 ):
     nan_features = df.isnull().sum()
     nan_features = nan_features[nan_features > 0]
-    nan_features = nan_features.index.tolist()
+    nan_features = nan_features.to_dict()
 
     return nan_features
 
