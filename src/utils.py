@@ -121,7 +121,7 @@ def visualize_regression_results(
         fig_size : tuple, default=(10, 5)
             Figure size for all plots
         titles : dict, optional
-            Custom titles for plots. Keys: 'scatter', 'residuals', 'distribution'
+            Custom titles for plots. Keys: 'scatter', 'residuals', 'distribution', 'qq_plot'
         save_path : str, optional
             Directory path to save figures. If None, figures are not saved
 
@@ -133,7 +133,8 @@ def visualize_regression_results(
         default_titles = {
             "scatter": "Precio Real vs Precio Predicho",
             "residuals": "Residuos vs Precio Predicho",
-            "distribution": "Distribución de Residuos"
+            "distribution": "Distribución de Residuos",
+            "qq_plot": "Normal Q-Q Plot de Residuos"
         }
         
         if not titles:
@@ -143,18 +144,13 @@ def visualize_regression_results(
                 if key not in titles:
                     titles[key] = default_titles[key]
         
-
         labels = {"actual": "Precio Real", "predicted": "Precio Predicho", "residuals": "Residuos"}
         
-
         if transform_func:
             y_true = transform_func(y_true)
             y_pred = transform_func(y_pred)
         
-
         figures = {}
-        
-
         residuals = y_true - y_pred
         
         # actual vs predicted scatter
@@ -186,7 +182,7 @@ def visualize_regression_results(
         plt.show() if show_figures else None
         figures["residuals"] = fig_residuals
         
-        # residuos distrbution
+        # residuos distribution
         fig_dist = plt.figure(figsize=fig_size)
         sns.histplot(residuals, kde=True)
         plt.xlabel(labels["residuals"])
@@ -196,8 +192,27 @@ def visualize_regression_results(
         plt.show() if show_figures else None
         figures["distribution"] = fig_dist
         
+        # Normal Q-Q plot of residuals
+        fig_qq = plt.figure(figsize=fig_size)
+        from scipy import stats
+        
+        # Calculate quantiles for the Q-Q plot
+        (quantiles, ordered_values), (slope, intercept, r) = stats.probplot(residuals, dist="norm")
+        
+        # Create the plot
+        plt.scatter(quantiles, ordered_values)
+        plt.plot(quantiles, slope * quantiles + intercept, 'r--')
+        
+        plt.xlabel("Cuantiles teóricos")
+        plt.ylabel("Cuantiles observados")
+        plt.title(titles["qq_plot"])
+        
+        if save_path:
+            plt.savefig(f"{save_path}/qq_plot.png", dpi=300, bbox_inches='tight')
+        plt.show() if show_figures else None
+        figures["qq_plot"] = fig_qq
+        
         return figures
-
 
 def train_and_evaluate_model(
     data_path, 
