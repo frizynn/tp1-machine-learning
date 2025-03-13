@@ -91,15 +91,15 @@ class Model:
         for name, coef in zip(self.feature_names, self.coef_):
             print(f"{name:<15} | {coef:+.{format_precision}f}")
 
-        if metric == "MSE" and "final_mse" in self._training_info:
-            print(
-                f"\nMSE final: {self._training_info['final_mse']:.{format_precision}f}"
-            )
+        # if metric == "MSE" and "final_mse" in self._training_info:
+        #     print(
+        #         f"\nMSE final: {self._training_info['final_mse']:.{format_precision}f}"
+        #     )
 
-        if metric == "R2" and "final_r2" in self._training_info:
-            print(
-                f"\nR^2 final: {self._training_info['final_r2']:.{format_precision}f}"
-            )
+        # if metric == "R2" and "final_r2" in self._training_info:
+        #     print(
+        #         f"\nR^2 final: {self._training_info['final_r2']:.{format_precision}f}"
+        #     )
 
         if self._training_info.get("method") == "gradient_descent":
             print(f"Convergencia: {'Sí' if self._training_info['converged'] else 'No'}")
