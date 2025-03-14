@@ -98,7 +98,7 @@ def train_model_for_feature(
         y_test,
     )
 
-def visualize_regression_results(
+def visualize_regression_results( #TODO: implementar parametro de que figuras ver
         y_true, 
         y_pred, 
         transform_func=None, 
@@ -303,10 +303,10 @@ def _create_qq_plot(residuals, titles, fig_size, save_path, show_figures):
     plt.show() if show_figures else plt.close()
     
     return fig_qq
-
 def train_and_evaluate_model(
-    data_path, 
     target_column, 
+    df=None,
+    data_path=None, 
     feature_columns=None, 
     test_size=0.2, 
     random_state=42, 
@@ -362,9 +362,8 @@ def train_and_evaluate_model(
     if model_class is None:
        raise Exception("Es necesario especificar el modelo")
        
-    df = pd.read_csv(data_path)
+    df = pd.read_csv(data_path) if df is None else df
     
-
     y_original = df[target_column].copy()
     if transform_target:
         df[target_column] = transform_target(df[target_column])
@@ -375,14 +374,28 @@ def train_and_evaluate_model(
     X = df[feature_columns]
     y = df[target_column]
     
-
-    if normalize_features:
-        X = (X - X.mean()) / X.std()
-    
-
+    # Primero hacemos el split y luego normalizamos usando los estadísticos del conjunto de entrenamiento
     X_train, X_test, y_train, y_test = split_test_train_with_label(
         X, y, test_size=test_size, random_state=random_state
     )
+    
+    # Normalizar features usando solo la información del conjunto de entrenamiento
+    if normalize_features:
+        # Calcular media y desviación estándar solo con los datos de entrenamiento
+        X_train_mean = X_train.mean()
+        X_train_std = X_train.std()
+        
+        # Aplicar la normalización al conjunto de entrenamiento
+        X_train = (X_train - X_train_mean) / X_train_std
+        
+        # Aplicar LA MISMA transformación al conjunto de test
+        X_test = (X_test - X_train_mean) / X_train_std
+        
+        # Guardar los parámetros de normalización para posible uso posterior
+        normalization_params = {
+            'mean': X_train_mean,
+            'std': X_train_std
+        }
     
     model:Model = model_class()
     model.fit(X_train, y_train, **fit_params)
@@ -399,7 +412,9 @@ def train_and_evaluate_model(
         'feature_columns': feature_columns
     }
     
-
+    if normalize_features:
+        results['normalization_params'] = normalization_params
+    
     metric_functions = {
         'mse': model.mse_score,
         'r2': model.r2_score,

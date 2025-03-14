@@ -5,3 +5,8 @@
 
 - hacer modelo de orden 2 despues de analizar la heterocedasticidad
 - tests de heterocedasticidad
+
+- poner la media a rooms y age dependiendo el barrio/ zona (lat y lon)
+
+
+- preguntar si puedo ponerle logs a los targets antes del punto 4

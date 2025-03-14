@@ -15,7 +15,7 @@ class PolinomialRegressor(Model):
         if degree is None:
             degree = getattr(self.__class__, "default_degree", 2)
         self.degree = degree
-        self.coef_ = None
+        self._coef = None
         self.intercept_ = None
         self.feature_names = None
         self._training_info = {}
@@ -71,12 +71,14 @@ class PolinomialRegressor(Model):
                     "especificarse cuando se usa el método pseudo_inverse"
                 )
 
-        self.feature_names = X.columns
+        # Store original feature names
+        self.original_feature_names = X.columns.tolist()
 
         if method == FitMethod.PSEUDO_INVERSE:
             self._fit_pseudo_inverse(X, y)
         elif method == FitMethod.GRADIENT_DESCENT:
-            X_design = self._build_design_matrix(X, degree=self.degree)
+            X_design, poly_feature_names = self._build_design_matrix(X, degree=self.degree)
+            self.feature_names = poly_feature_names[1:]  # Exclude intercept
             self._fit_gradient_descent(
                 X_design.values,
                 y.values,
@@ -89,13 +91,18 @@ class PolinomialRegressor(Model):
         return self
 
     def _fit_pseudo_inverse(self, X: pd.DataFrame, y: pd.Series):
-        X_design = self._build_design_matrix(X, self.degree)
+        X_design, poly_feature_names = self._build_design_matrix(X, self.degree)
         X_np = X_design.values.astype(float)
         y_np = y.values.astype(float)
 
         coeffs, residuals, rank, s = np.linalg.lstsq(X_np, y_np, rcond=None)
         self.intercept_ = coeffs[0]
-        self.coef_ = coeffs[1:]
+        self._coef = coeffs[1:]
+        self.feature_names = poly_feature_names[1:]  # Exclude intercept
+        
+        # Create a dictionary mapping feature names to coefficients
+        self.coef_dict = dict(zip(self.feature_names, self._coef))
+        
         self._training_info = {
             "method": "pseudo_inverse",
             "final_mse": self.mse_score(X, y),
@@ -171,7 +178,11 @@ class PolinomialRegressor(Model):
         
         history["iterations"] = epoch + 1
         self.intercept_ = coeffs[0]
-        self.coef_ = coeffs[1:]
+        self._coef = coeffs[1:]
+        
+        # Create a dictionary mapping feature names to coefficients
+        if self.feature_names is not None and len(self.feature_names) == len(self._coef):
+            self.coef_dict = dict(zip(self.feature_names, self._coef))
         
         # Convert X_np back to DataFrame for r2_score calculation
         X_df = pd.DataFrame(X_np[:, 1:])  
@@ -186,9 +197,14 @@ class PolinomialRegressor(Model):
             "history": history,
         }
 
-    def _build_design_matrix(self, X: pd.DataFrame, degree: int = 1) -> pd.DataFrame:
+    def _build_design_matrix(self, X: pd.DataFrame, degree: int = 1) -> tuple:
         """
         Construye la matriz de diseño para regresión polinómica.
+        
+        Returns
+        -------
+        tuple
+            (DataFrame con la matriz de diseño, lista con nombres de las features polinómicas)
         """
         X = X.copy()  # Para evitar modificar el DataFrame original
         if isinstance(X, pd.Series):
@@ -200,13 +216,37 @@ class PolinomialRegressor(Model):
             
         X = X.reset_index(drop=True)
         X_poly = pd.DataFrame({"intercept": np.ones(len(X))})
+        poly_feature_names = ["intercept"]
         
         # Generar términos polinómicos para cada feature
         for i in range(1, degree + 1):
             for col in X.columns:
-                X_poly[f"{col}^{i}"] = X[col] ** i
+                feature_name = f"{col}^{i}" if i > 1 else col
+                X_poly[feature_name] = X[col] ** i
+                poly_feature_names.append(feature_name)
                 
-        return X_poly
+        return X_poly, poly_feature_names
+
+    @property
+    def coef_(self):
+        """
+        Devuelve los coeficientes del modelo.
+        Si se ha entrenado el modelo, devuelve un DataFrame con los nombres de features y sus coeficientes.
+        De lo contrario, devuelve None.
+        """
+        if hasattr(self, '_coef') and self._coef is not None and hasattr(self, 'feature_names'):
+            return pd.DataFrame({
+                'feature': self.feature_names,
+                'coefficient': self._coef
+            })
+        return self._coef
+    
+    @coef_.setter
+    def coef_(self, value):
+        """
+        Establece los coeficientes del modelo.
+        """
+        self._coef = value
 
     def predict(self, X: pd.DataFrame):
         """
@@ -222,12 +262,12 @@ class PolinomialRegressor(Model):
         np.ndarray
             Vector de predicciones
         """
-        if self.coef_ is None or self.intercept_ is None:
+        if self._coef is None or self.intercept_ is None:
             raise ValueError("El modelo debe ser entrenado antes de hacer predicciones")
             
-        X_design = self._build_design_matrix(X, self.degree)
+        X_design, _ = self._build_design_matrix(X, self.degree)
         X_np = X_design.values.astype(float)
-        coeffs = np.concatenate(([self.intercept_], self.coef_))
+        coeffs = np.concatenate(([self.intercept_], self._coef))
         
         # Asegurarse de que las dimensiones coincidan
         if X_np.shape[1] != len(coeffs):
@@ -235,3 +275,4 @@ class PolinomialRegressor(Model):
             
         return X_np @ coeffs
 
+    

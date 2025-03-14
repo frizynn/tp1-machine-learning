@@ -68,6 +68,21 @@ class Model:
                     X_poly[f"{col}^{i}"] = X[col] ** i
             return X_poly
 
+    def get_coef_array(self):
+        """
+        Devuelve los coeficientes como un array de numpy, para mantener compatibilidad
+        con código que espera ese formato.
+        """
+        return self._coef
+
+    def get_coef_dict(self):
+        """
+        Devuelve un diccionario con los nombres de features y sus coeficientes
+        """
+        if hasattr(self, 'feature_names') and self.feature_names is not None and self._coef is not None:
+            return dict(zip(self.feature_names, self._coef))
+        return None
+
     def print_coefficients(self, format_precision: int = 4, metric: str = "MSE"):
         """
         Imprime los coeficientes del modelo con los nombres de sus variables.
@@ -79,33 +94,27 @@ class Model:
         metric : str
             Tipo de error a mostrar (default: "MSE")
         """
-        if self.coef_ is None or self.feature_names is None:
-            print("El modelo no ha sido entrenado aún.")
-            return
-
+        if not hasattr(self, 'coef_dict') or self.coef_dict is None:
+            return super().print_coefficients(format_precision, metric)
+            
         print(f"Método: {self._training_info.get('method', 'desconocido')}")
         print(f"Intercept: {self.intercept_:.{format_precision}f}\n")
         print("Coeficientes:")
         print("-" * 30)
 
-        for name, coef in zip(self.feature_names, self.coef_):
+        for name, coef in self.coef_dict.items():
             print(f"{name:<15} | {coef:+.{format_precision}f}")
 
         if metric == "MSE" and "final_mse" in self._training_info:
-            print(
-                f"\nMSE final: {self._training_info['final_mse']:.{format_precision}f}"
-            )
+            print(f"\nMSE final: {self._training_info['final_mse']:.{format_precision}f}")
 
         if metric == "R2" and "final_r2" in self._training_info:
-            print(
-                f"\nR^2 final: {self._training_info['final_r2']:.{format_precision}f}"
-            )
+            print(f"\nR^2 final: {self._training_info['final_r2']:.{format_precision}f}")
 
         if self._training_info.get("method") == "gradient_descent":
             print(f"Convergencia: {'Sí' if self._training_info['converged'] else 'No'}")
-            print(
-                f"Iteraciones: {self._training_info['final_epoch']}/{self._training_info['epochs']}"
-            )
+            print(f"Iteraciones: {self._training_info['final_epoch']}/{self._training_info['epochs']}")
+
 
     def get_training_info(self) -> Dict:
         """
