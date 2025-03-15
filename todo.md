@@ -15,3 +15,7 @@
 
 - hacer que la escala de los graficos de pool sea la misma
 - preguntar si en el set de testeo uso la media de age y rooms del set de dev o del test
+
+- es un quilombo hacer dos modelos dsitintos, uno para bs as y otro para ney york porque hay diferentes zonas dentro de cada uno, PREGUNTAR QUE HACER
+
+- punto 4.3

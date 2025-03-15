@@ -211,15 +211,20 @@ class PolinomialRegressor(Model):
             X = pd.DataFrame(X)
             
         X = X.reset_index(drop=True)
-        X_poly = pd.DataFrame({"intercept": np.ones(len(X))})
+        
+        # Prepare a dictionary to collect all columns
+        poly_data = {"intercept": np.ones(len(X))}
         poly_feature_names = ["intercept"]
         
         # Generar términos polinómicos para cada feature
         for i in range(1, degree + 1):
             for col in X.columns:
                 feature_name = f"{col}^{i}" if i > 1 else col
-                X_poly[feature_name] = X[col] ** i
+                poly_data[feature_name] = X[col] ** i
                 poly_feature_names.append(feature_name)
+        
+        # Create the DataFrame all at once
+        X_poly = pd.DataFrame(poly_data)
                 
         return X_poly, poly_feature_names
 
