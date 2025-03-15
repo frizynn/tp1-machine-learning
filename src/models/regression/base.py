@@ -12,6 +12,7 @@ class FitMethod(Enum):
 
 
 
+    
 class Model:
     def __init__(self):
         self.coef_ = None
@@ -83,7 +84,7 @@ class Model:
             return dict(zip(self.feature_names, self._coef))
         return None
 
-    def print_coefficients(self, format_precision: int = 4, metric: str = "MSE"):
+    def print_coefficients(self, format_precision: int = 4):
         """
         Imprime los coeficientes del modelo con los nombres de sus variables.
 
@@ -95,7 +96,7 @@ class Model:
             Tipo de error a mostrar (default: "MSE")
         """
         if not hasattr(self, 'coef_dict') or self.coef_dict is None:
-            return super().print_coefficients(format_precision, metric)
+            return super().print_coefficients(format_precision)
             
         print(f"Método: {self._training_info.get('method', 'desconocido')}")
         print(f"Intercept: {self.intercept_:.{format_precision}f}\n")
@@ -104,12 +105,6 @@ class Model:
 
         for name, coef in self.coef_dict.items():
             print(f"{name:<15} | {coef:+.{format_precision}f}")
-
-        if metric == "MSE" and "final_mse" in self._training_info:
-            print(f"\nMSE final: {self._training_info['final_mse']:.{format_precision}f}")
-
-        if metric == "R2" and "final_r2" in self._training_info:
-            print(f"\nR^2 final: {self._training_info['final_r2']:.{format_precision}f}")
 
         if self._training_info.get("method") == "gradient_descent":
             print(f"Convergencia: {'Sí' if self._training_info['converged'] else 'No'}")

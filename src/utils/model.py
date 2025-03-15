@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 import seaborn as sns
 
 
-from models.regression.data import (
+from .data import (
     split_test_train_with_label,
     split_test_train_without_label,
 )
@@ -172,7 +172,7 @@ def train_and_evaluate_model(
                 print(f"{metric.upper()}: {results[metric]:.6f}")
         
         try:
-            model.print_coefficients(metric="R2")
+            model.print_coefficients()
         except:
             print("\nCoefficients:")
             for i, feat in enumerate(feature_columns):
