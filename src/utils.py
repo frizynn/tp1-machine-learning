@@ -303,6 +303,8 @@ def _create_qq_plot(residuals, titles, fig_size, save_path, show_figures):
     plt.show() if show_figures else plt.close()
     
     return fig_qq
+
+
 def train_and_evaluate_model(
     target_column, 
     df=None,
@@ -374,24 +376,20 @@ def train_and_evaluate_model(
     X = df[feature_columns]
     y = df[target_column]
     
-    # Primero hacemos el split y luego normalizamos usando los estadísticos del conjunto de entrenamiento
+
     X_train, X_test, y_train, y_test = split_test_train_with_label(
         X, y, test_size=test_size, random_state=random_state
     )
     
-    # Normalizar features usando solo la información del conjunto de entrenamiento
     if normalize_features:
-        # Calcular media y desviación estándar solo con los datos de entrenamiento
+
         X_train_mean = X_train.mean()
         X_train_std = X_train.std()
         
-        # Aplicar la normalización al conjunto de entrenamiento
         X_train = (X_train - X_train_mean) / X_train_std
         
-        # Aplicar LA MISMA transformación al conjunto de test
         X_test = (X_test - X_train_mean) / X_train_std
         
-        # Guardar los parámetros de normalización para posible uso posterior
         normalization_params = {
             'mean': X_train_mean,
             'std': X_train_std
@@ -440,3 +438,116 @@ def train_and_evaluate_model(
             print(f"  Intercept: {model.intercept_:.6f}")
             
     return results
+
+
+
+def analyze_pool_value_impact(model_results, property_df, feature_name='has_pool', plot=True):
+    """
+    Analyze the impact of a specific feature (e.g., pool) on property value.
+    
+    Parameters
+    ----------
+    model_results : dict
+        Dictionary containing model and results from train_and_evaluate_model
+    property_df : pandas.DataFrame
+        DataFrame containing property data used in the model
+    feature_name : str, default='has_pool'
+        Name of the feature to analyze impact
+    plot : bool, default=True
+        Whether to generate and display visualization
+        
+    Returns
+    -------
+    dict
+        Dictionary containing analysis results (impact values and percentages)
+    """
+    import numpy as np
+    import matplotlib.pyplot as plt
+    
+    # Validate inputs
+    if feature_name not in model_results["model"].get_coef_dict():
+        raise ValueError(f"Feature '{feature_name}' not found in model coefficients.")
+    
+    # Extract feature coefficient and calculate impacts
+    feature_impact = model_results["model"].get_coef_dict()[feature_name]
+    avg_property_price = property_df["price"].mean()
+    percentage_impact = (feature_impact / avg_property_price) * 100
+    
+    # Print results
+    print(f"\nImpact of adding {feature_name.replace('_', ' ')} to a property:")
+    print(f"- Absolute value added: {feature_impact:.2f} monetary units")
+    print(f"- Average property price: {avg_property_price:.2f} monetary units")
+    print(f"- Percentage increase on average: {percentage_impact:.2f}%")
+    
+    # Property-specific impact calculation
+    if property_df["is_house"].nunique() == 1:
+        property_type = "house" if property_df["is_house"].iloc[0] == 1 else "department"
+        print(f"\nNote: This model was trained on {property_type}s only.")
+    
+    # Generate visualization if requested
+    if plot:
+        _visualize_impact_vs_price(feature_impact, property_df)
+    
+    # Return results as a dictionary for potential further use
+    return {
+        "feature_name": feature_name,
+        "absolute_impact": feature_impact,
+        "average_price": avg_property_price,
+        "percentage_impact": percentage_impact
+    }
+
+
+def _visualize_impact_vs_price(impact_value, property_df, num_points=10):
+    """
+    Visualize how feature impact varies across different property prices.
+    
+    Parameters
+    ----------
+    impact_value : float
+        The impact value of the feature
+    property_df : pandas.DataFrame
+        DataFrame containing property data
+    num_points : int, default=10
+        Number of points to use in the visualization
+    """
+    import numpy as np
+    import matplotlib.pyplot as plt
+    
+    # Generate price points for visualization
+    min_price = max(10, property_df["price"].min())  # Avoid division by zero
+    max_price = property_df["price"].max()
+    property_prices = np.linspace(min_price, max_price, num_points)
+    
+    # Calculate absolute and percentage impacts
+    absolute_values = [impact_value] * num_points
+    percent_values = [impact_value / price * 100 for price in property_prices]
+    
+    # Create figure with two y-axes for different scales
+    fig, ax1 = plt.subplots(figsize=(12, 6))
+    
+    # Plot absolute impact
+    color = 'tab:blue'
+    ax1.set_xlabel('Property Price')
+    ax1.set_ylabel('Absolute Value Added', color=color)
+    ax1.plot(property_prices, absolute_values, color=color, label="Absolute Value")
+    ax1.tick_params(axis='y', labelcolor=color)
+    ax1.axhline(y=impact_value, color=color, linestyle='--', alpha=0.5)
+    
+    # Create second y-axis for percentage impact
+    ax2 = ax1.twinx()
+    color = 'tab:red'
+    ax2.set_ylabel('Percentage Value Added (%)', color=color)
+    ax2.plot(property_prices, percent_values, color=color, label="Percentage Value")
+    ax2.tick_params(axis='y', labelcolor=color)
+    
+    # Add title and grid
+    plt.title('Impact of Feature vs. Property Price')
+    ax1.grid(True, alpha=0.3)
+    
+    # Add legend with both lines
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper right')
+    
+    plt.tight_layout()
+    plt.show()

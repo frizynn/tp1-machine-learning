@@ -10,3 +10,8 @@
 
 
 - preguntar si puedo ponerle logs a los targets antes del punto 4
+- no entiendo lo de desnormalzizar
+- hacer clase loss que tenga su gradiente
+
+- hacer que la escala de los graficos de pool sea la misma
+- preguntar si en el set de testeo uso la media de age y rooms del set de dev o del test

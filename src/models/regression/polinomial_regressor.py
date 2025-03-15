@@ -180,19 +180,15 @@ class PolinomialRegressor(Model):
         self.intercept_ = coeffs[0]
         self._coef = coeffs[1:]
         
-        # Create a dictionary mapping feature names to coefficients
         if self.feature_names is not None and len(self.feature_names) == len(self._coef):
             self.coef_dict = dict(zip(self.feature_names, self._coef))
         
-        # Convert X_np back to DataFrame for r2_score calculation
-        X_df = pd.DataFrame(X_np[:, 1:])  
+
         self._training_info = {
             "method": "gradient_descent",
             "params": params,
             "final_epoch": epoch + 1,
             "epochs": epochs,
-            "final_mse": mse,
-            "final_r2": self.r2_score(X_df, pd.Series(y_np)),
             "converged": abs(prev_mse - mse) < tolerance,
             "history": history,
         }
