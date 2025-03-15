@@ -102,8 +102,7 @@ class PolinomialRegressor(Model):
         # lanzar error ya que requieren optimización iterativa
         if method == FitMethod.PSEUDO_INVERSE and alpha > 0:
             if regularization == 'l1' or (regularization == 'elasticnet' and l1_ratio > 0):
-                raise ValueError("La regularización L1 (Lasso) y ElasticNet solo pueden resolverse "
-                                "mediante gradient_descent, no tienen solución analítica.")
+                raise ValueError("La regularización L1 (Lasso) y ElasticNet solo pueden resolverse mediante gradient_descent, no tienen solución analítica.")
 
         if method == FitMethod.PSEUDO_INVERSE:
             # Si es regularización L2 (Ridge) con pseudo_inverse, usar la solución analítica
@@ -113,7 +112,7 @@ class PolinomialRegressor(Model):
                 self._fit_pseudo_inverse(X, y)
         elif method == FitMethod.GRADIENT_DESCENT:
             X_design, poly_feature_names = self._build_design_matrix(X, degree=self.degree)
-            self.feature_names = poly_feature_names[1:]  # Exclude intercept
+            self.feature_names = poly_feature_names[1:] 
             self._fit_gradient_descent(
                 X_design.values,
                 y.values,
@@ -205,7 +204,7 @@ class PolinomialRegressor(Model):
         X_np = X_design.values.astype(float)
         y_np = y.values.astype(float)
 
-        coeffs, residuals, rank, s = np.linalg.lstsq(X_np, y_np, rcond=None)
+        coeffs, _, _, _ = np.linalg.lstsq(X_np, y_np, rcond=None)
         self.intercept_ = coeffs[0]
         self._coef = coeffs[1:]
         self.feature_names = poly_feature_names[1:]  # Exclude intercept
@@ -245,6 +244,10 @@ class PolinomialRegressor(Model):
                 - l1_ratio (float): Proporción L1 para ElasticNet (default=0.5)
                 - exclude_intercept (bool): No penalizar intercepto (default=True)
         """
+        if loss not in ['mse', 'mae', 'l1', 'l2']:
+            raise ValueError(f"Función de pérdida no reconocida: {loss}")
+        
+
         params = {
             'lr': 0.01,
             'epochs': 1000,
@@ -316,7 +319,6 @@ class PolinomialRegressor(Model):
             
             prev_loss = current_loss
             
-            # Calcular gradientes con regularización
             gradients = LossFunction.gradient(
                 loss, X_np, y_np, coeffs, 
                 regularization, alpha, l1_ratio, exclude_intercept

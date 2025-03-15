@@ -108,7 +108,7 @@ def train_and_evaluate_model(
        
     df = pd.read_csv(data_path) if df is None else df
     
-    y_original = df[target_column].copy()
+    # y_original = df[target_column].copy()
     if transform_target:
         df[target_column] = transform_target(df[target_column])
     
