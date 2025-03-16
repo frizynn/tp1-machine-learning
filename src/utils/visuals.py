@@ -450,142 +450,293 @@ def _compare_impact_vs_price(impacts, property_dfs, feature_name, y_lim=None, x_
         "ax2": ax2
     }
 
-
-
-
 def plot_regularization_path(
-        X_train: pd.DataFrame,
-        X_test: pd.DataFrame,
-        y_train: pd.Series,
-        y_test: pd.Series,
-        regularization: str = 'l2',
-        alphas: np.ndarray = None,
-        method: str = 'gradient_descent',
-        learning_rate: float = 0.001,
-        epochs: int = 1000,
-        figsize: tuple = (12, 8),
-        print_metrics: bool = False,
-        style: str = 'whitegrid',
-        model: Model = LinearRegressor,
-        transform_target = None
-    ) -> tuple:
-        """
-        Visualiza el camino de regularización (cómo cambian los coeficientes con alpha).
+    X_train: pd.DataFrame,
+    X_test: pd.DataFrame,
+    y_train: pd.Series,
+    y_test: pd.Series,
+    regularization: str = 'l2',
+    alphas: np.ndarray = None,
+    method: str = 'gradient_descent',
+    learning_rate: float = 0.001,
+    epochs: int = 1000,
+    figsize: tuple = (18, 6),
+    print_metrics: bool = False,
+    style: str = 'whitegrid',
+    model: Model = LinearRegressor,
+    transform_target = None,
+    seed: int = 42,
+    cv_folds: int = 5,
+    show_plots: bool = False,
+    plot_types: list = ['coefs', 'cv', 'val', 'combined']
+) -> tuple:
+    """
+    Visualiza el camino de regularización y el ECM en tres subplots:
+    1) Coeficientes vs. alpha
+    2) ECM por validación cruzada vs. alpha
+    3) ECM en conjunto de validación vs. alpha
+    
+    Parameters
+    ----------
+    X_train : pd.DataFrame
+        Datos de entrenamiento
+    X_test : pd.DataFrame
+        Datos de prueba
+    y_train : pd.Series
+        Variable objetivo de entrenamiento
+    y_test : pd.Series
+        Variable objetivo de prueba
+    regularization : str, default='l2'
+        Tipo de regularización ('l1' o 'l2')
+    alphas : np.ndarray, default=None
+        Lista de valores alpha para evaluar
+    method : str, default='gradient_descent'
+        Método de entrenamiento del modelo
+    learning_rate : float, default=0.001
+        Tasa de aprendizaje para descenso de gradiente
+    epochs : int, default=1000
+        Número de épocas para descenso de gradiente
+    figsize : tuple, default=(18, 6)
+        Tamaño de figura para los subplots
+    print_metrics : bool, default=False
+        Si es True, imprime métricas durante el entrenamiento
+    style : str, default='whitegrid'
+        Estilo de seaborn para las gráficas
+    model : Model, default=LinearRegressor
+        Clase del modelo a utilizar
+    transform_target : callable, default=None
+        Función para transformar la variable objetivo
+    seed : int, default=42
+        Semilla para reproducibilidad
+    cv_folds : int, default=5
+        Número de folds para validación cruzada
+    show_plots : bool, default=False
+        Si es True, muestra las figuras inmediatamente
+    plot_types : list, default=['coefs', 'cv', 'val', 'combined']
+        Lista de gráficos a generar. Opciones:
+        - 'coefs': Camino de regularización (coeficientes vs alpha)
+        - 'cv': Error por validación cruzada vs alpha
+        - 'val': Error en conjunto de validación vs alpha
+        - 'combined': Los tres gráficos en una sola figura
+        - 'coefs+cv': Coeficientes y error CV en una figura
+        - 'coefs+val': Coeficientes y error validación en una figura
+        - 'cv+val': Error CV y error validación en una figura
+    
+    Returns
+    -------
+    tuple
+        (figuras, coeficientes, cv_scores, best_metrics)
+        figuras: dict con las figuras individuales para cada tipo de gráfico
+        coeficientes: array con los coeficientes para cada valor de alpha
+        cv_scores: dict con los puntajes de validación cruzada
+        best_metrics: dict con métricas y mejores valores de alpha
+    """
+    if alphas is None:
+        alphas = np.linspace(0, 100, 100)
+    
+    feature_names = X_train.columns
+    coefs = []
+    cv_scores = {alpha: [] for alpha in alphas}
+    validation_metrics = {
+        'mse': [],
+        'r2': []
+    }
+    
+    # Transform target if needed
+    y_train_transformed = transform_target(y_train) if transform_target else y_train
+    y_test_transformed = transform_target(y_test) if transform_target else y_test
+    
+    # Prepare cross-validation splits
+    n_samples = len(X_train)
+    fold_size = n_samples // cv_folds
+    indices = np.arange(n_samples)
+    np.random.seed(seed=seed)
+    np.random.shuffle(indices)
+    
+    # Loop through alphas
+    for alpha in alphas:
+        # 1. Entrenar modelo sobre X_train completo para obtener coeficientes
+        model_full = model()
+        model_full.fit(
+            X_train,
+            y_train_transformed,
+            method=method,
+            regularization=regularization,
+            alpha=alpha,
+            epochs=epochs,
+            learning_rate=learning_rate
+        )
         
-        Parameters
-        ----------
-        X_train : pd.DataFrame
-            Datos de entrenamiento
-        X_test : pd.DataFrame
-            Datos de prueba
-        y_train : pd.Series
-            Target de entrenamiento
-        y_test : pd.Series
-            Target de prueba
-        regularization : str
-            Tipo de regularización ('l1' para Lasso, 'l2' para Ridge)
-        alphas : np.ndarray, opcional
-            Array de alphas a probar. Si es None, usa np.logspace(-4, 4, 100)
-        method : str
-            Método de entrenamiento ('gradient_descent' o 'pseudo_inverse')
-        learning_rate : float
-            Tasa de aprendizaje para gradient_descent
-        epochs : int
-            Número de épocas para gradient_descent
-        figsize : tuple
-            Tamaño de la figura
-        print_r2 : bool
-            Si es True, imprime el R2 score para cada alpha
-        style : str
-            Estilo de seaborn a utilizar
+        # Guardar coeficientes del modelo entrenado sobre X_train completo
+        coefs.append(model_full.get_coef_array())
+        
+        # Evaluar en conjunto de validación (X_test)
+        y_pred_val = model_full.predict(X_test)
+        mse_val = model_full.mse_score(X_test, y_test_transformed)
+        r2_val = 1 - ((y_test_transformed - y_pred_val) ** 2).sum() / ((y_test_transformed - y_test_transformed.mean()) ** 2).sum()
+        
+        validation_metrics['mse'].append(mse_val)
+        validation_metrics['r2'].append(r2_val)
+        
+        # 2. Ejecutar validación cruzada para obtener ECM robusto
+        fold_scores = []
+        
+        for fold in range(cv_folds):
+            # Create train/val split for this fold
+            val_idx = indices[fold * fold_size:(fold + 1) * fold_size]
+            train_idx = np.concatenate([
+                indices[:fold * fold_size],
+                indices[(fold + 1) * fold_size:]
+            ])
             
-        Returns
-        -------
-        tuple
-            (figura, coeficientes, r2_scores, best_alpha)
-        """
-        if alphas is None:
-            alphas = np.linspace(0, 100, 100)
-        
-        feature_names = X_train.columns
-        coefs = []
-        r2_scores = []
-        mse_scores = []
-        
-        best_mse = float('inf')
-        best_r2 = -float('inf')
-        best_alpha_r2 = None
-        best_alpha_mse = None
-        
-        y_test = transform_target(y_test) if transform_target else y_test
-        y_train = transform_target(y_train) if transform_target else y_train
-
-        # Recolectar datos
-        for a in alphas:
-            model_c:Model = model()
-            model_c.fit(
-                X_train, 
-                y_train, 
+            X_fold_train = X_train.iloc[train_idx]
+            y_fold_train = y_train_transformed.iloc[train_idx]
+            X_fold_val = X_train.iloc[val_idx]
+            y_fold_val = y_train_transformed.iloc[val_idx]
+            
+            # Train model on this fold
+            model_fold = model()
+            model_fold.fit(
+                X_fold_train,
+                y_fold_train,
                 method=method,
                 regularization=regularization,
-                alpha=a,
+                alpha=alpha,
                 epochs=epochs,
                 learning_rate=learning_rate
             )
             
-
-            mse = model_c.mse_score(X_test, y_test)
-            r2 = model_c.r2_score(X_test, y_test)
-            r2_scores.append(r2)
-            mse_scores.append(mse)
-            
-            if r2 > best_r2:
-                best_r2 = r2
-                best_alpha_r2 = a
-
-            if mse < best_mse:
-                best_mse = mse
-                best_alpha_mse = a
-
-            if print_metrics:
-                print(f"Alpha: {a:.4f}, R2: {r2:.4f}, MSE: {mse:.4f}")
-
-            coefs.append(model_c.get_coef_array())
+            # Calculate MSE for this fold
+            mse = model_fold.mse_score(X_fold_val, y_fold_val)
+            fold_scores.append(mse)
         
-        coefs_array = np.array(coefs)
+        # Store mean CV score for this alpha
+        cv_scores[alpha] = np.mean(fold_scores)
         
-        # Crear DataFrame para seaborn
-        plot_data = pd.DataFrame(coefs_array, columns=feature_names)
-        plot_data['alpha'] = alphas
-        plot_data_melted = pd.melt(plot_data, id_vars=['alpha'], var_name='Feature', value_name='Coefficient')
+        if print_metrics:
+            print(f"Alpha: {alpha:.4f}, CV MSE: {cv_scores[alpha]:.4f}, Validation MSE: {mse_val:.4f}")
+    
+    # Convert coefficients to array
+    coefs_array = np.array(coefs)
+    
+    # Preparar métricas
+    cv_values = list(cv_scores.values())
+    validation_mse_array = np.array(validation_metrics['mse'])
+    validation_r2_array = np.array(validation_metrics['r2'])
+    
+    best_alpha_cv = alphas[np.argmin(cv_values)]
+    best_alpha_val = alphas[np.argmin(validation_mse_array)]
+    
+    # Preparar datos para gráficos
+    plot_data = pd.DataFrame(coefs_array, columns=feature_names)
+    plot_data['alpha'] = alphas
+    plot_data_melted = pd.melt(plot_data, id_vars=['alpha'], 
+                              var_name='Feature', value_name='Coefficient')
+    
+    # Configurar estilo
+    sns.set_style(style)
+    
+    # Diccionario para almacenar las figuras
+    figures = {}
+    
+    # Funciones auxiliares para crear gráficos
+    def create_coefs_plot(ax):
+        sns.lineplot(data=plot_data_melted, x='alpha', y='Coefficient', 
+                    hue='Feature', linewidth=2, ax=ax)
         
-        # Configurar estilo
-        sns.set_style(style)
+        ax.set_xlabel('alpha (regularización)')
+        ax.set_ylabel('Valor del peso')
+        ax.set_title(f'Coeficientes de {"Lasso" if regularization == "l1" else "Ridge"}\n' 
+                     'en función del parámetro de regularización')
+        ax.grid(True, alpha=0.3)
+        ax.axhline(y=0, color='k', linestyle='-', alpha=0.3)
+        ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    
+    def create_cv_plot(ax):
+        ax.plot(alphas, cv_values, '-o', color='blue')
+        ax.axvline(x=best_alpha_cv, color='r', linestyle='--', 
+                  label=f'Mejor α={best_alpha_cv:.4f}\nECM={min(cv_values):.4f}')
         
-        # Crear gráfico
-        fig = plt.figure(figsize=figsize)
-        sns.lineplot(data=plot_data_melted, x='alpha', y='Coefficient', hue='Feature', linewidth=2)
+        ax.set_xlabel('alpha (regularización)')
+        ax.set_ylabel('Error Cuadrático Medio')
+        ax.set_title(f'ECM por Validación Cruzada\n{cv_folds}-fold CV')
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+    
+    def create_val_plot(ax):
+        ax.plot(alphas, validation_mse_array, '-o', color='green')
+        ax.axvline(x=best_alpha_val, color='r', linestyle='--', 
+                  label=f'Mejor α={best_alpha_val:.4f}\nECM={min(validation_mse_array):.4f}')
         
-        plt.xlabel('alpha (regularización)')
-        plt.ylabel('Valor del peso')
-        plt.title(f'Coeficientes de {"Lasso" if regularization == "l1" else "Ridge"} '
-                  'en función del parámetro de regularización')
-        plt.grid(True, alpha=0.3)
-        plt.axhline(y=0, color='k', linestyle='-', alpha=0.3)
-        
-        # Ajustar leyenda
-        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-        plt.tight_layout()
-        
-        best_vals = {
-            'best_alpha_r2': best_alpha_r2,
-            'best_alpha_mse': best_alpha_mse,
-            'best_r2': best_r2,
-            'best_mse': best_mse
-        }
-
-        return fig, coefs_array, r2_scores, best_vals
-
-
-
-
+        ax.set_xlabel('alpha (regularización)')
+        ax.set_ylabel('Error Cuadrático Medio')
+        ax.set_title(f'ECM en Conjunto de Validación\nTest Set')
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+    
+    # Crear figuras individuales
+    if 'coefs' in plot_types:
+        fig_coefs = plt.figure(figsize=(figsize[0]//3, figsize[1]))
+        ax_coefs = fig_coefs.add_subplot(1, 1, 1)
+        create_coefs_plot(ax_coefs)
+        figures['coefs'] = {'fig': fig_coefs, 'ax': ax_coefs}
+    
+    if 'cv' in plot_types:
+        fig_cv = plt.figure(figsize=(figsize[0]//3, figsize[1]))
+        ax_cv = fig_cv.add_subplot(1, 1, 1)
+        create_cv_plot(ax_cv)
+        figures['cv'] = {'fig': fig_cv, 'ax': ax_cv}
+    
+    if 'val' in plot_types:
+        fig_val = plt.figure(figsize=(figsize[0]//3, figsize[1]))
+        ax_val = fig_val.add_subplot(1, 1, 1)
+        create_val_plot(ax_val)
+        figures['val'] = {'fig': fig_val, 'ax': ax_val}
+    
+    # Crear figuras combinadas
+    if 'combined' in plot_types:
+        fig_combined, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=figsize)
+        create_coefs_plot(ax1)
+        create_cv_plot(ax2)
+        create_val_plot(ax3)
+        figures['combined'] = {'fig': fig_combined, 'axes': [ax1, ax2, ax3]}
+    
+    # Combinaciones adicionales
+    if 'coefs+cv' in plot_types:
+        fig_coefs_cv, (ax1, ax2) = plt.subplots(1, 2, figsize=(figsize[0]//3*2, figsize[1]))
+        create_coefs_plot(ax1)
+        create_cv_plot(ax2)
+        figures['coefs+cv'] = {'fig': fig_coefs_cv, 'axes': [ax1, ax2]}
+    
+    if 'coefs+val' in plot_types:
+        fig_coefs_val, (ax1, ax2) = plt.subplots(1, 2, figsize=(figsize[0]//3*2, figsize[1]))
+        create_coefs_plot(ax1)
+        create_val_plot(ax2)
+        figures['coefs+val'] = {'fig': fig_coefs_val, 'axes': [ax1, ax2]}
+    
+    if 'cv+val' in plot_types:
+        fig_cv_val, (ax1, ax2) = plt.subplots(1, 2, figsize=(figsize[0]//3*2, figsize[1]))
+        create_cv_plot(ax1)
+        create_val_plot(ax2)
+        figures['cv+val'] = {'fig': fig_cv_val, 'axes': [ax1, ax2]}
+    
+    # Aplicar tight_layout a todas las figuras
+    for fig_dict in figures.values():
+        if 'fig' in fig_dict:
+            fig_dict['fig'].tight_layout()
+    
+    # Mostrar plots si se solicitó
+    if show_plots:
+        plt.show()
+    
+    # Find best alpha values
+    best_metrics = {
+        'best_alpha_cv': best_alpha_cv,
+        'best_mse_cv': min(cv_values),
+        'best_alpha_val': best_alpha_val,
+        'best_mse_val': min(validation_mse_array),
+        'best_alpha_r2': alphas[np.argmax(validation_r2_array)],
+        'best_r2': max(validation_r2_array)
+    }
+    
+    return figures, coefs_array, cv_scores, best_metrics
