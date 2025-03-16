@@ -450,6 +450,8 @@ def _compare_impact_vs_price(impacts, property_dfs, feature_name, y_lim=None, x_
         "ax2": ax2
     }
 
+
+
 def plot_regularization_path(
     X_train: pd.DataFrame,
     X_test: pd.DataFrame,
@@ -468,13 +470,11 @@ def plot_regularization_path(
     seed: int = 42,
     cv_folds: int = 5,
     show_plots: bool = False,
-    plot_types: list = ['coefs', 'cv', 'val', 'combined']
+    plot_types: list = ['coefs', 'cv', 'val', 'combined'],
+    metrics: list = ['mse', 'r2']
 ) -> tuple:
     """
-    Visualiza el camino de regularización y el ECM en tres subplots:
-    1) Coeficientes vs. alpha
-    2) ECM por validación cruzada vs. alpha
-    3) ECM en conjunto de validación vs. alpha
+    Visualiza el camino de regularización y métricas de evaluación en función de alpha.
     
     Parameters
     ----------
@@ -521,6 +521,12 @@ def plot_regularization_path(
         - 'coefs+cv': Coeficientes y error CV en una figura
         - 'coefs+val': Coeficientes y error validación en una figura
         - 'cv+val': Error CV y error validación en una figura
+    metrics : list, default=['mse', 'r2']
+        Lista de métricas a calcular y visualizar. Opciones:
+        - 'mse': Error cuadrático medio
+        - 'rmse': Raíz del error cuadrático medio
+        - 'r2': Coeficiente de determinación
+        - 'mae': Error absoluto medio
     
     Returns
     -------
@@ -531,212 +537,456 @@ def plot_regularization_path(
         cv_scores: dict con los puntajes de validación cruzada
         best_metrics: dict con métricas y mejores valores de alpha
     """
-    if alphas is None:
-        alphas = np.linspace(0, 100, 100)
+    # Inicializar y validar parámetros
+    alphas = _initialize_alphas(alphas)
+    metrics = _validate_metrics(metrics)
     
+    # Preparar datos
     feature_names = X_train.columns
-    coefs = []
-    cv_scores = {alpha: [] for alpha in alphas}
-    validation_metrics = {
-        'mse': [],
-        'r2': []
-    }
+    y_train_transformed, y_test_transformed = _prepare_target_data(y_train, y_test, transform_target)
     
-    # Transform target if needed
+    # Crear índices para validación cruzada
+    cv_indices = _create_cv_indices(len(X_train), cv_folds, seed)
+    
+    # Entrenar modelos y calcular métricas
+    coefs_array, cv_scores, validation_metrics = _train_models_and_evaluate(
+        X_train, X_test, y_train_transformed, y_test_transformed,
+        model, method, regularization, alphas, epochs, learning_rate, cv_folds, cv_indices,
+        metrics, print_metrics
+    )
+    
+    # Calcular métricas óptimas
+    best_metrics = _calculate_best_metrics(alphas, cv_scores, validation_metrics, metrics)
+    
+    # Crear visualizaciones
+    figures = _create_visualizations(
+        coefs_array, feature_names, alphas, cv_scores, validation_metrics,
+        best_metrics, metrics, regularization, cv_folds, style, figsize, plot_types
+    )
+    
+    # Mostrar plots si se solicita
+    if show_plots:
+        plt.show()
+    else:
+        plt.close('all')
+    
+    return figures, coefs_array, cv_scores, best_metrics
+
+
+def _initialize_alphas(alphas):
+    """Inicializa el array de valores alpha si no se proporciona."""
+    if alphas is None:
+        return np.linspace(0, 100, 100)
+    return alphas
+
+
+def _validate_metrics(metrics):
+    """Valida que las métricas especificadas sean permitidas."""
+    allowed_metrics = ['mse', 'rmse', 'r2', 'mae']
+    metrics = [m.lower() for m in metrics]
+    
+    for metric in metrics:
+        if metric not in allowed_metrics:
+            raise ValueError(f"Métrica no reconocida: {metric}. Métricas disponibles: {allowed_metrics}")
+    
+    return metrics
+
+
+def _prepare_target_data(y_train, y_test, transform_target):
+    """Aplica transformación a los datos objetivo si se proporciona una función."""
     y_train_transformed = transform_target(y_train) if transform_target else y_train
     y_test_transformed = transform_target(y_test) if transform_target else y_test
-    
-    # Prepare cross-validation splits
-    n_samples = len(X_train)
+    return y_train_transformed, y_test_transformed
+
+
+def _create_cv_indices(n_samples, cv_folds, seed):
+    """Crea índices para validación cruzada."""
     fold_size = n_samples // cv_folds
     indices = np.arange(n_samples)
     np.random.seed(seed=seed)
     np.random.shuffle(indices)
+    return indices
+
+
+def _calculate_metrics(y_true, y_pred, metrics_list):
+    """Calcula las métricas solicitadas."""
+    results = {}
+    if 'mse' in metrics_list:
+        results['mse'] = np.mean((y_true - y_pred) ** 2)
+    if 'rmse' in metrics_list:
+        results['rmse'] = np.sqrt(np.mean((y_true - y_pred) ** 2))
+    if 'r2' in metrics_list:
+        ss_total = np.sum((y_true - np.mean(y_true)) ** 2)
+        ss_residual = np.sum((y_true - y_pred) ** 2)
+        results['r2'] = 1 - (ss_residual / ss_total) if ss_total != 0 else 0
+    if 'mae' in metrics_list:
+        results['mae'] = np.mean(np.abs(y_true - y_pred))
+    return results
+
+
+def _train_models_and_evaluate(X_train, X_test, y_train, y_test, model_class, 
+                              method, regularization, alphas, epochs, learning_rate,
+                              cv_folds, indices, metrics, print_metrics):
+    """Entrena modelos con diferentes valores de alpha y evalúa su rendimiento."""
+    fold_size = len(X_train) // cv_folds
+    coefs = []
+    cv_scores = {metric: {alpha: [] for alpha in alphas} for metric in metrics}
+    validation_metrics = {metric: [] for metric in metrics}
     
-    # Loop through alphas
     for alpha in alphas:
-        # 1. Entrenar modelo sobre X_train completo para obtener coeficientes
-        model_full = model()
+        # Entrenar modelo sobre todo X_train para coeficientes
+        model_full = model_class()
         model_full.fit(
-            X_train,
-            y_train_transformed,
-            method=method,
-            regularization=regularization,
-            alpha=alpha,
-            epochs=epochs,
-            learning_rate=learning_rate
+            X_train, y_train, method=method, 
+            regularization=regularization, alpha=alpha,
+            epochs=epochs, learning_rate=learning_rate
         )
         
-        # Guardar coeficientes del modelo entrenado sobre X_train completo
+        # Guardar coeficientes
         coefs.append(model_full.get_coef_array())
         
-        # Evaluar en conjunto de validación (X_test)
+        # Evaluar en conjunto de validación
         y_pred_val = model_full.predict(X_test)
-        mse_val = model_full.mse_score(X_test, y_test_transformed)
-        r2_val = 1 - ((y_test_transformed - y_pred_val) ** 2).sum() / ((y_test_transformed - y_test_transformed.mean()) ** 2).sum()
+        val_metrics = _calculate_metrics(y_test, y_pred_val, metrics)
         
-        validation_metrics['mse'].append(mse_val)
-        validation_metrics['r2'].append(r2_val)
+        for metric_name, metric_value in val_metrics.items():
+            validation_metrics[metric_name].append(metric_value)
         
-        # 2. Ejecutar validación cruzada para obtener ECM robusto
-        fold_scores = []
+        # Ejecutar validación cruzada
+        fold_metrics = _cross_validate_model(
+            X_train, y_train, model_class, method, regularization,
+            alpha, epochs, learning_rate, cv_folds, indices, metrics
+        )
         
-        for fold in range(cv_folds):
-            # Create train/val split for this fold
-            val_idx = indices[fold * fold_size:(fold + 1) * fold_size]
-            train_idx = np.concatenate([
-                indices[:fold * fold_size],
-                indices[(fold + 1) * fold_size:]
-            ])
-            
-            X_fold_train = X_train.iloc[train_idx]
-            y_fold_train = y_train_transformed.iloc[train_idx]
-            X_fold_val = X_train.iloc[val_idx]
-            y_fold_val = y_train_transformed.iloc[val_idx]
-            
-            # Train model on this fold
-            model_fold = model()
-            model_fold.fit(
-                X_fold_train,
-                y_fold_train,
-                method=method,
-                regularization=regularization,
-                alpha=alpha,
-                epochs=epochs,
-                learning_rate=learning_rate
-            )
-            
-            # Calculate MSE for this fold
-            mse = model_fold.mse_score(X_fold_val, y_fold_val)
-            fold_scores.append(mse)
-        
-        # Store mean CV score for this alpha
-        cv_scores[alpha] = np.mean(fold_scores)
+        # Almacenar scores medios de CV
+        for metric in metrics:
+            cv_scores[metric][alpha] = np.mean(fold_metrics[metric])
         
         if print_metrics:
-            print(f"Alpha: {alpha:.4f}, CV MSE: {cv_scores[alpha]:.4f}, Validation MSE: {mse_val:.4f}")
+            _print_metrics_summary(alpha, cv_scores, validation_metrics, metrics)
     
-    # Convert coefficients to array
-    coefs_array = np.array(coefs)
+    return np.array(coefs), cv_scores, validation_metrics
+
+
+def _cross_validate_model(X_train, y_train, model_class, method, regularization,
+                         alpha, epochs, learning_rate, cv_folds, indices, metrics):
+    """Ejecuta validación cruzada para un modelo con un valor específico de alpha."""
+    fold_size = len(X_train) // cv_folds
+    fold_metrics = {metric: [] for metric in metrics}
     
-    # Preparar métricas
-    cv_values = list(cv_scores.values())
-    validation_mse_array = np.array(validation_metrics['mse'])
-    validation_r2_array = np.array(validation_metrics['r2'])
+    for fold in range(cv_folds):
+        # Crear división train/val para este fold
+        val_idx = indices[fold * fold_size:(fold + 1) * fold_size]
+        train_idx = np.concatenate([
+            indices[:fold * fold_size],
+            indices[(fold + 1) * fold_size:]
+        ])
+        
+        X_fold_train = X_train.iloc[train_idx]
+        y_fold_train = y_train.iloc[train_idx]
+        X_fold_val = X_train.iloc[val_idx]
+        y_fold_val = y_train.iloc[val_idx]
+        
+        # Entrenar modelo en este fold
+        model_fold = model_class()
+        model_fold.fit(
+            X_fold_train, y_fold_train, method=method,
+            regularization=regularization, alpha=alpha,
+            epochs=epochs, learning_rate=learning_rate
+        )
+        
+        # Calcular métricas para este fold
+        y_fold_pred = model_fold.predict(X_fold_val)
+        fold_results = _calculate_metrics(y_fold_val, y_fold_pred, metrics)
+        
+        # Almacenar resultados del fold
+        for metric_name, metric_value in fold_results.items():
+            fold_metrics[metric_name].append(metric_value)
     
-    best_alpha_cv = alphas[np.argmin(cv_values)]
-    best_alpha_val = alphas[np.argmin(validation_mse_array)]
+    return fold_metrics
+
+
+def _print_metrics_summary(alpha, cv_scores, validation_metrics, metrics):
+    """Imprime un resumen de las métricas para un valor específico de alpha."""
+    metric_strings = []
+    for metric in metrics:
+        metric_strings.append(f"CV {metric.upper()}: {cv_scores[metric][alpha]:.4f}")
+        metric_strings.append(f"Val {metric.upper()}: {validation_metrics[metric][-1]:.4f}")
+    print(f"Alpha: {alpha:.4f}, " + ", ".join(metric_strings))
+
+
+def _calculate_best_metrics(alphas, cv_scores, validation_metrics, metrics):
+    """Calcula las mejores métricas y sus correspondientes valores de alpha."""
+    best_metrics = {}
     
+    for metric in metrics:
+        cv_values = list(cv_scores[metric].values())
+        val_values = validation_metrics[metric]
+        
+        # Para MSE, RMSE, MAE: el mínimo es mejor
+        # Para R²: el máximo es mejor
+        if metric in ['mse', 'rmse', 'mae']:
+            best_alpha_cv = alphas[np.argmin(cv_values)]
+            best_alpha_val = alphas[np.argmin(val_values)]
+            best_cv_value = min(cv_values)
+            best_val_value = min(val_values)
+        else:  # 'r2'
+            best_alpha_cv = alphas[np.argmax(cv_values)]
+            best_alpha_val = alphas[np.argmax(val_values)]
+            best_cv_value = max(cv_values)
+            best_val_value = max(val_values)
+        
+        best_metrics[f'best_alpha_cv_{metric}'] = best_alpha_cv
+        best_metrics[f'best_{metric}_cv'] = best_cv_value
+        best_metrics[f'best_alpha_val_{metric}'] = best_alpha_val
+        best_metrics[f'best_{metric}_val'] = best_val_value
+    
+    return best_metrics
+
+
+def _create_visualizations(coefs_array, feature_names, alphas, cv_scores, validation_metrics,
+                          best_metrics, metrics, regularization, cv_folds, style, figsize, plot_types):
+    """Crea todas las visualizaciones solicitadas."""
     # Preparar datos para gráficos
     plot_data = pd.DataFrame(coefs_array, columns=feature_names)
     plot_data['alpha'] = alphas
     plot_data_melted = pd.melt(plot_data, id_vars=['alpha'], 
-                              var_name='Feature', value_name='Coefficient')
+                             var_name='Feature', value_name='Coefficient')
     
     # Configurar estilo
     sns.set_style(style)
     
-    # Diccionario para almacenar las figuras
+    # Crear diccionario para almacenar figuras
     figures = {}
     
-    # Funciones auxiliares para crear gráficos
-    def create_coefs_plot(ax):
-        sns.lineplot(data=plot_data_melted, x='alpha', y='Coefficient', 
-                    hue='Feature', linewidth=2, ax=ax)
-        
-        ax.set_xlabel('alpha (regularización)')
-        ax.set_ylabel('Valor del peso')
-        ax.set_title(f'Coeficientes de {"Lasso" if regularization == "l1" else "Ridge"}\n' 
-                     'en función del parámetro de regularización')
-        ax.grid(True, alpha=0.3)
-        ax.axhline(y=0, color='k', linestyle='-', alpha=0.3)
-        ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-    
-    def create_cv_plot(ax):
-        ax.plot(alphas, cv_values, '-o', color='blue')
-        ax.axvline(x=best_alpha_cv, color='r', linestyle='--', 
-                  label=f'Mejor α={best_alpha_cv:.4f}\nECM={min(cv_values):.4f}')
-        
-        ax.set_xlabel('alpha (regularización)')
-        ax.set_ylabel('Error Cuadrático Medio')
-        ax.set_title(f'ECM por Validación Cruzada\n{cv_folds}-fold CV')
-        ax.grid(True, alpha=0.3)
-        ax.legend()
-    
-    def create_val_plot(ax):
-        ax.plot(alphas, validation_mse_array, '-o', color='green')
-        ax.axvline(x=best_alpha_val, color='r', linestyle='--', 
-                  label=f'Mejor α={best_alpha_val:.4f}\nECM={min(validation_mse_array):.4f}')
-        
-        ax.set_xlabel('alpha (regularización)')
-        ax.set_ylabel('Error Cuadrático Medio')
-        ax.set_title(f'ECM en Conjunto de Validación\nTest Set')
-        ax.grid(True, alpha=0.3)
-        ax.legend()
+    # Definir funciones de ayuda para crear gráficos
+    plot_functions = {
+        'create_coefs_plot': _create_coefs_plot,
+        'create_metric_plot': _create_metric_plot
+    }
     
     # Crear figuras individuales
-    if 'coefs' in plot_types:
-        fig_coefs = plt.figure(figsize=(figsize[0]//3, figsize[1]))
-        ax_coefs = fig_coefs.add_subplot(1, 1, 1)
-        create_coefs_plot(ax_coefs)
-        figures['coefs'] = {'fig': fig_coefs, 'ax': ax_coefs}
-    
-    if 'cv' in plot_types:
-        fig_cv = plt.figure(figsize=(figsize[0]//3, figsize[1]))
-        ax_cv = fig_cv.add_subplot(1, 1, 1)
-        create_cv_plot(ax_cv)
-        figures['cv'] = {'fig': fig_cv, 'ax': ax_cv}
-    
-    if 'val' in plot_types:
-        fig_val = plt.figure(figsize=(figsize[0]//3, figsize[1]))
-        ax_val = fig_val.add_subplot(1, 1, 1)
-        create_val_plot(ax_val)
-        figures['val'] = {'fig': fig_val, 'ax': ax_val}
+    figures = _create_individual_plots(
+        figures, plot_types, figsize, plot_data_melted, cv_scores, validation_metrics,
+        best_metrics, metrics, alphas, regularization, cv_folds, plot_functions
+    )
     
     # Crear figuras combinadas
-    if 'combined' in plot_types:
-        fig_combined, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=figsize)
-        create_coefs_plot(ax1)
-        create_cv_plot(ax2)
-        create_val_plot(ax3)
-        figures['combined'] = {'fig': fig_combined, 'axes': [ax1, ax2, ax3]}
-    
-    # Combinaciones adicionales
-    if 'coefs+cv' in plot_types:
-        fig_coefs_cv, (ax1, ax2) = plt.subplots(1, 2, figsize=(figsize[0]//3*2, figsize[1]))
-        create_coefs_plot(ax1)
-        create_cv_plot(ax2)
-        figures['coefs+cv'] = {'fig': fig_coefs_cv, 'axes': [ax1, ax2]}
-    
-    if 'coefs+val' in plot_types:
-        fig_coefs_val, (ax1, ax2) = plt.subplots(1, 2, figsize=(figsize[0]//3*2, figsize[1]))
-        create_coefs_plot(ax1)
-        create_val_plot(ax2)
-        figures['coefs+val'] = {'fig': fig_coefs_val, 'axes': [ax1, ax2]}
-    
-    if 'cv+val' in plot_types:
-        fig_cv_val, (ax1, ax2) = plt.subplots(1, 2, figsize=(figsize[0]//3*2, figsize[1]))
-        create_cv_plot(ax1)
-        create_val_plot(ax2)
-        figures['cv+val'] = {'fig': fig_cv_val, 'axes': [ax1, ax2]}
+    figures = _create_combined_plots(
+        figures, plot_types, figsize, plot_data_melted, cv_scores, validation_metrics,
+        best_metrics, metrics, alphas, regularization, cv_folds, plot_functions
+    )
     
     # Aplicar tight_layout a todas las figuras
     for fig_dict in figures.values():
         if 'fig' in fig_dict:
             fig_dict['fig'].tight_layout()
     
-    # Mostrar plots si se solicitó
-    if show_plots:
-        plt.show()
+    return figures
+
+
+def _create_individual_plots(figures, plot_types, figsize, plot_data_melted, cv_scores, 
+                           validation_metrics, best_metrics, metrics, alphas, regularization, 
+                           cv_folds, plot_functions):
+    """Crea gráficas individuales para coeficientes y métricas."""
+    create_coefs_plot = plot_functions['create_coefs_plot']
+    create_metric_plot = plot_functions['create_metric_plot']
     
-    # Find best alpha values
-    best_metrics = {
-        'best_alpha_cv': best_alpha_cv,
-        'best_mse_cv': min(cv_values),
-        'best_alpha_val': best_alpha_val,
-        'best_mse_val': min(validation_mse_array),
-        'best_alpha_r2': alphas[np.argmax(validation_r2_array)],
-        'best_r2': max(validation_r2_array)
+    # Crear gráfico de coeficientes
+    if 'coefs' in plot_types:
+        fig_coefs = plt.figure(figsize=(figsize[0]//3, figsize[1]))
+        ax_coefs = fig_coefs.add_subplot(1, 1, 1)
+        create_coefs_plot(ax_coefs, plot_data_melted, regularization)
+        figures['coefs'] = {'fig': fig_coefs, 'ax': ax_coefs}
+    
+    # Crear gráficos individuales para cada métrica
+    for metric in metrics:
+        # Figura para CV
+        if f'cv_{metric}' in plot_types or 'cv' in plot_types:
+            fig_cv = plt.figure(figsize=(figsize[0]//3, figsize[1]))
+            ax_cv = fig_cv.add_subplot(1, 1, 1)
+            create_metric_plot(ax_cv, metric, alphas, cv_scores, validation_metrics, 
+                             best_metrics, is_validation=False, cv_folds=cv_folds)
+            figures[f'cv_{metric}'] = {'fig': fig_cv, 'ax': ax_cv}
+        
+        # Figura para validación
+        if f'val_{metric}' in plot_types or 'val' in plot_types:
+            fig_val = plt.figure(figsize=(figsize[0]//3, figsize[1]))
+            ax_val = fig_val.add_subplot(1, 1, 1)
+            create_metric_plot(ax_val, metric, alphas, cv_scores, validation_metrics, 
+                             best_metrics, is_validation=True, cv_folds=cv_folds)
+            figures[f'val_{metric}'] = {'fig': fig_val, 'ax': ax_val}
+    
+    return figures
+
+
+def _create_combined_plots(figures, plot_types, figsize, plot_data_melted, cv_scores, 
+                          validation_metrics, best_metrics, metrics, alphas, regularization, 
+                          cv_folds, plot_functions):
+    """Crea gráficos combinados según las opciones solicitadas."""
+    create_coefs_plot = plot_functions['create_coefs_plot']
+    create_metric_plot = plot_functions['create_metric_plot']
+    
+    # Crear combinaciones predefinidas
+    predefined_combinations = {
+        'combined': None,  # Todos los gráficos
+        'coefs+cv': ['coefs'] + [f'cv_{m}' for m in metrics],
+        'coefs+val': ['coefs'] + [f'val_{m}' for m in metrics],
+        'cv+val': sum([[f'cv_{m}', f'val_{m}'] for m in metrics], [])
     }
     
-    return figures, coefs_array, cv_scores, best_metrics
+    for plot_type in plot_types:
+        if plot_type in predefined_combinations:
+            if plot_type == 'combined':
+                # Crear figura combinada con todas las métricas
+                n_plots = 1 + 2 * len(metrics)  # 1 para coeficientes + 2 por métrica
+                fig_combined, axes = plt.subplots(1, n_plots, figsize=(figsize[0]/3*n_plots, figsize[1]))
+                
+                create_coefs_plot(axes[0], plot_data_melted, regularization)
+                
+                for i, metric in enumerate(metrics):
+                    create_metric_plot(axes[2*i+1], metric, alphas, cv_scores, validation_metrics, 
+                                     best_metrics, is_validation=False, cv_folds=cv_folds)
+                    create_metric_plot(axes[2*i+2], metric, alphas, cv_scores, validation_metrics, 
+                                     best_metrics, is_validation=True, cv_folds=cv_folds)
+                
+                figures['combined'] = {'fig': fig_combined, 'axes': axes}
+            else:
+                # Crear otras combinaciones predefinidas
+                parts = predefined_combinations[plot_type]
+                fig_combined, axes = plt.subplots(1, len(parts), 
+                                                figsize=(figsize[0]/3*len(parts), figsize[1]))
+                
+                # Si solo hay una parte, axes no será iterable
+                if len(parts) == 1:
+                    axes = [axes]
+                
+                for i, part in enumerate(parts):
+                    if part == 'coefs':
+                        create_coefs_plot(axes[i], plot_data_melted, regularization)
+                    elif part.startswith('cv_'):
+                        metric = part[3:]
+                        create_metric_plot(axes[i], metric, alphas, cv_scores, validation_metrics, 
+                                         best_metrics, is_validation=False, cv_folds=cv_folds)
+                    elif part.startswith('val_'):
+                        metric = part[4:]
+                        create_metric_plot(axes[i], metric, alphas, cv_scores, validation_metrics, 
+                                         best_metrics, is_validation=True, cv_folds=cv_folds)
+                
+                figures[plot_type] = {'fig': fig_combined, 'axes': axes}
+        
+        # Procesar combinaciones personalizadas
+        elif '+' in plot_type and plot_type not in predefined_combinations:
+            _create_custom_combined_plot(
+                figures, plot_type, figsize, metrics, plot_data_melted,
+                cv_scores, validation_metrics, best_metrics, alphas,
+                regularization, cv_folds, plot_functions
+            )
+    
+    return figures
+
+
+def _create_custom_combined_plot(figures, plot_type, figsize, metrics, plot_data_melted,
+                               cv_scores, validation_metrics, best_metrics, alphas,
+                               regularization, cv_folds, plot_functions):
+    """Crea un gráfico combinado personalizado a partir de partes especificadas."""
+    create_coefs_plot = plot_functions['create_coefs_plot']
+    create_metric_plot = plot_functions['create_metric_plot']
+    
+    parts = plot_type.split('+')
+    
+    # Validar que todas las partes existan
+    valid_parts = []
+    for part in parts:
+        if part == 'coefs':
+            valid_parts.append(part)
+        elif part.startswith('cv_'):
+            metric = part[3:]
+            if metric in metrics:
+                valid_parts.append(part)
+        elif part.startswith('val_'):
+            metric = part[4:]
+            if metric in metrics:
+                valid_parts.append(part)
+    
+    if valid_parts:
+        fig_combined, axes = plt.subplots(1, len(valid_parts), 
+                                        figsize=(figsize[0]/3*len(valid_parts), figsize[1]))
+        
+        # Si solo hay una parte válida, axes no será iterable
+        if len(valid_parts) == 1:
+            axes = [axes]
+        
+        for i, part in enumerate(valid_parts):
+            if part == 'coefs':
+                create_coefs_plot(axes[i], plot_data_melted, regularization)
+            elif part.startswith('cv_'):
+                metric = part[3:]
+                create_metric_plot(axes[i], metric, alphas, cv_scores, validation_metrics, 
+                                 best_metrics, is_validation=False, cv_folds=cv_folds)
+            elif part.startswith('val_'):
+                metric = part[4:]
+                create_metric_plot(axes[i], metric, alphas, cv_scores, validation_metrics, 
+                                 best_metrics, is_validation=True, cv_folds=cv_folds)
+        
+        figures[plot_type] = {'fig': fig_combined, 'axes': axes}
+    
+    return figures
+
+
+def _create_coefs_plot(ax, plot_data_melted, regularization):
+    """Crea un gráfico de coeficientes vs alpha."""
+    sns.lineplot(data=plot_data_melted, x='alpha', y='Coefficient', 
+                hue='Feature', linewidth=2, ax=ax)
+    
+    ax.set_xlabel('alpha (regularización)')
+    ax.set_ylabel('Valor del peso')
+    ax.set_title(f'Coeficientes de {"Lasso" if regularization == "l1" else "Ridge"}\n' 
+                 'en función del parámetro de regularización')
+    ax.grid(True, alpha=0.3)
+    ax.axhline(y=0, color='k', linestyle='-', alpha=0.3)
+    
+    # Mover la leyenda fuera del gráfico para evitar superposiciones
+    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+
+
+def _create_metric_plot(ax, metric_name, alphas, cv_scores, validation_metrics, 
+                       best_metrics, is_validation=False, cv_folds=5):
+    """Crea un gráfico de métricas vs alpha."""
+    values = validation_metrics[metric_name] if is_validation else list(cv_scores[metric_name].values())
+    best_alpha = best_metrics[f'best_alpha_val_{metric_name}'] if is_validation else best_metrics[f'best_alpha_cv_{metric_name}']
+    best_value = best_metrics[f'best_{metric_name}_val'] if is_validation else best_metrics[f'best_{metric_name}_cv']
+    
+    # Para R², el mejor valor es el máximo; para otras métricas, el mínimo
+    if metric_name == 'r2':
+        best_idx = np.argmax(values)
+        value_label = "Mayor"
+    else:
+        best_idx = np.argmin(values)
+        value_label = "Menor"
+    
+    # Diferentes colores para CV y validación
+    color = 'green' if is_validation else 'blue'
+    
+    ax.plot(alphas, values, '-o', color=color)
+    ax.axvline(x=best_alpha, color='r', linestyle='--', 
+              label=f'Mejor α={best_alpha:.4f}\n{value_label} {metric_name.upper()}={best_value:.4f}')
+    
+    ax.set_xlabel('alpha (regularización)')
+    
+    # Nombres descriptivos para las métricas
+    metric_labels = {
+        'mse': 'Error Cuadrático Medio',
+        'rmse': 'Raíz del Error Cuadrático Medio',
+        'r2': 'Coeficiente de Determinación (R²)',
+        'mae': 'Error Absoluto Medio'
+    }
+    
+    ax.set_ylabel(metric_labels.get(metric_name, metric_name.upper()))
+    
+    # Indicar si es validación cruzada o conjunto de validación
+    source = "Conjunto de Validación" if is_validation else f"Validación Cruzada ({cv_folds}-fold)"
+    ax.set_title(f'{metric_labels.get(metric_name, metric_name.upper())}\n{source}')
+    
+    ax.grid(True, alpha=0.3)
+    ax.legend()
