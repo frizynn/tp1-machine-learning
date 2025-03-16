@@ -3,7 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
-
+from models.regression.linear_regressor import LinearRegressor
+from models.regression.base import Model
 def visualize_regression_results( #TODO: implementar parametro de que figuras ver
         y_true, 
         y_pred, 
@@ -448,3 +449,143 @@ def _compare_impact_vs_price(impacts, property_dfs, feature_name, y_lim=None, x_
         "ax1": ax1,
         "ax2": ax2
     }
+
+
+
+
+def plot_regularization_path(
+        X_train: pd.DataFrame,
+        X_test: pd.DataFrame,
+        y_train: pd.Series,
+        y_test: pd.Series,
+        regularization: str = 'l2',
+        alphas: np.ndarray = None,
+        method: str = 'gradient_descent',
+        learning_rate: float = 0.001,
+        epochs: int = 1000,
+        figsize: tuple = (12, 8),
+        print_metrics: bool = False,
+        style: str = 'whitegrid',
+        model: Model = LinearRegressor,
+        transform_target = None
+    ) -> tuple:
+        """
+        Visualiza el camino de regularización (cómo cambian los coeficientes con alpha).
+        
+        Parameters
+        ----------
+        X_train : pd.DataFrame
+            Datos de entrenamiento
+        X_test : pd.DataFrame
+            Datos de prueba
+        y_train : pd.Series
+            Target de entrenamiento
+        y_test : pd.Series
+            Target de prueba
+        regularization : str
+            Tipo de regularización ('l1' para Lasso, 'l2' para Ridge)
+        alphas : np.ndarray, opcional
+            Array de alphas a probar. Si es None, usa np.logspace(-4, 4, 100)
+        method : str
+            Método de entrenamiento ('gradient_descent' o 'pseudo_inverse')
+        learning_rate : float
+            Tasa de aprendizaje para gradient_descent
+        epochs : int
+            Número de épocas para gradient_descent
+        figsize : tuple
+            Tamaño de la figura
+        print_r2 : bool
+            Si es True, imprime el R2 score para cada alpha
+        style : str
+            Estilo de seaborn a utilizar
+            
+        Returns
+        -------
+        tuple
+            (figura, coeficientes, r2_scores, best_alpha)
+        """
+        if alphas is None:
+            alphas = np.linspace(0, 100, 100)
+        
+        feature_names = X_train.columns
+        coefs = []
+        r2_scores = []
+        mse_scores = []
+        
+        best_mse = float('inf')
+        best_r2 = -float('inf')
+        best_alpha_r2 = None
+        best_alpha_mse = None
+        
+        y_test = transform_target(y_test) if transform_target else y_test
+        y_train = transform_target(y_train) if transform_target else y_train
+
+        # Recolectar datos
+        for a in alphas:
+            model_c:Model = model()
+            model_c.fit(
+                X_train, 
+                y_train, 
+                method=method,
+                regularization=regularization,
+                alpha=a,
+                epochs=epochs,
+                learning_rate=learning_rate
+            )
+            
+
+            mse = model_c.mse_score(X_test, y_test)
+            r2 = model_c.r2_score(X_test, y_test)
+            r2_scores.append(r2)
+            mse_scores.append(mse)
+            
+            if r2 > best_r2:
+                best_r2 = r2
+                best_alpha_r2 = a
+
+            if mse < best_mse:
+                best_mse = mse
+                best_alpha_mse = a
+
+            if print_metrics:
+                print(f"Alpha: {a:.4f}, R2: {r2:.4f}, MSE: {mse:.4f}")
+
+            coefs.append(model_c.get_coef_array())
+        
+        coefs_array = np.array(coefs)
+        
+        # Crear DataFrame para seaborn
+        plot_data = pd.DataFrame(coefs_array, columns=feature_names)
+        plot_data['alpha'] = alphas
+        plot_data_melted = pd.melt(plot_data, id_vars=['alpha'], var_name='Feature', value_name='Coefficient')
+        
+        # Configurar estilo
+        sns.set_style(style)
+        
+        # Crear gráfico
+        fig = plt.figure(figsize=figsize)
+        sns.lineplot(data=plot_data_melted, x='alpha', y='Coefficient', hue='Feature', linewidth=2)
+        
+        plt.xlabel('alpha (regularización)')
+        plt.ylabel('Valor del peso')
+        plt.title(f'Coeficientes de {"Lasso" if regularization == "l1" else "Ridge"} '
+                  'en función del parámetro de regularización')
+        plt.grid(True, alpha=0.3)
+        plt.axhline(y=0, color='k', linestyle='-', alpha=0.3)
+        
+        # Ajustar leyenda
+        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        plt.tight_layout()
+        
+        best_vals = {
+            'best_alpha_r2': best_alpha_r2,
+            'best_alpha_mse': best_alpha_mse,
+            'best_r2': best_r2,
+            'best_mse': best_mse
+        }
+
+        return fig, coefs_array, r2_scores, best_vals
+
+
+
+

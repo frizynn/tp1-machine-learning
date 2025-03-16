@@ -34,7 +34,8 @@ class PolinomialRegressor(Model):
         regularization: Optional[str] = None,
         alpha: float = 0.0,
         l1_ratio: float = 0.5,
-        exclude_intercept: bool = True
+        exclude_intercept: bool = True,
+        report_metrics: bool = False
     ) -> "PolinomialRegressor":
         """
         Entrena el modelo usando el método especificado
@@ -109,7 +110,7 @@ class PolinomialRegressor(Model):
             if regularization == 'l2' and alpha > 0:
                 self._fit_ridge_analytical(X, y, alpha, exclude_intercept)
             else:
-                self._fit_pseudo_inverse(X, y)
+                self._fit_pseudo_inverse(X, y,report_metrics)
         elif method == FitMethod.GRADIENT_DESCENT:
             X_design, poly_feature_names = self._build_design_matrix(X, degree=self.degree)
             self.feature_names = poly_feature_names[1:] 
@@ -124,12 +125,20 @@ class PolinomialRegressor(Model):
                 regularization=regularization,
                 alpha=alpha,
                 l1_ratio=l1_ratio,
-                exclude_intercept=exclude_intercept
+                exclude_intercept=exclude_intercept,
+                report_metrics=report_metrics
             )
 
         return self
 
-    def _fit_ridge_analytical(self, X: pd.DataFrame, y: pd.Series, alpha: float = 1.0, exclude_intercept: bool = True):
+    def _fit_ridge_analytical(
+        self, 
+        X: pd.DataFrame, 
+        y: pd.Series, 
+        alpha: float = 1.0, 
+        exclude_intercept: bool = True,
+        report_metrics: bool = True
+    ):
         """
         Entrena un modelo de regresión Ridge usando la solución analítica.
         
@@ -143,6 +152,8 @@ class PolinomialRegressor(Model):
             Parámetro de regularización
         exclude_intercept : bool
             Si es True, no penaliza el intercepto
+        report_metrics : bool
+            Si es True, calcula y guarda métricas adicionales
         """
         X_design, poly_feature_names = self._build_design_matrix(X, self.degree)
         X_np = X_design.values.astype(float)
@@ -150,7 +161,6 @@ class PolinomialRegressor(Model):
         n_samples, n_features = X_np.shape
         
         # Crear matriz de identidad para regularización
-        # Si exclude_intercept es True, no penalizamos el intercepto (primera columna)
         if exclude_intercept:
             identity = np.eye(n_features)
             identity[0, 0] = 0  # No regularizar el intercepto
@@ -163,43 +173,45 @@ class PolinomialRegressor(Model):
         XTy = X_np.T @ y_np
         
         try:
-            # Intentar resolver con inversión directa
             coeffs = np.linalg.solve(XTX_reg, XTy)
         except np.linalg.LinAlgError:
-            # Si hay problemas numéricos, usar pseudoinversa
             coeffs = np.linalg.pinv(XTX_reg) @ XTy
         
         self.intercept_ = coeffs[0]
         self._coef = coeffs[1:]
-        self.feature_names = poly_feature_names[1:]  # Exclude intercept
+        self.feature_names = poly_feature_names[1:]
         
         # Create a dictionary mapping feature names to coefficients
         self.coef_dict = dict(zip(self.feature_names, self._coef))
         
-        # Calcular métricas finales
-        y_pred = X_np @ coeffs
-        final_mse = LossFunction.mse(y_np, y_pred)
-        final_r2 = 1 - ((y_np - y_pred) ** 2).sum() / ((y_np - y_np.mean()) ** 2).sum()
-        
-        # Calcular la pérdida regularizada para el seguimiento
-        reg_loss = final_mse
-        if alpha > 0:
-            ridge_penalty = LossFunction.ridge_penalty(coeffs, alpha, exclude_intercept)
-            reg_loss = final_mse + ridge_penalty
-        
-        self._training_info = {
+        # Initialize training info
+        training_info = {
             "method": "ridge_analytical",
             "regularization_type": "l2",
             "alpha": alpha,
             "exclude_intercept": exclude_intercept,
-            "final_mse": final_mse,
-            "final_r2": final_r2,
-            "final_reg_mse": reg_loss
         }
         
+        # Calculate metrics only if requested
+        if report_metrics:
+            y_pred = X_np @ coeffs
+            metrics = {
+                "mse": LossFunction.mse(y_np, y_pred),
+                "r2": 1 - ((y_np - y_pred) ** 2).sum() / ((y_np - y_np.mean()) ** 2).sum(),
+                "mae": LossFunction.mae(y_np, y_pred)
+            }
+            
+            # Add regularization penalty if applicable
+            if alpha > 0:
+                ridge_penalty = LossFunction.ridge_penalty(coeffs, alpha, exclude_intercept)
+                metrics["reg_mse"] = metrics["mse"] + ridge_penalty
+            
+            training_info["metrics"] = metrics
+        
+        self._training_info = training_info
         return self
 
-    def _fit_pseudo_inverse(self, X: pd.DataFrame, y: pd.Series):
+    def _fit_pseudo_inverse(self, X: pd.DataFrame, y: pd.Series, report_metrics: bool = True):
         X_design, poly_feature_names = self._build_design_matrix(X, self.degree)
         X_np = X_design.values.astype(float)
         y_np = y.values.astype(float)
@@ -214,14 +226,24 @@ class PolinomialRegressor(Model):
         
         self._training_info = {
             "method": "pseudo_inverse",
-            "final_mse": self.mse_score(X, y),
+            "final_mse": self.mse_score(X, y) if report_metrics else None,
         }
         return self
+    
     def _fit_gradient_descent(
         self,
         X_np: np.ndarray,
         y_np: np.ndarray,
-        **kwargs
+        lr: float = 0.01,
+        epochs: int = 1000,
+        tolerance: float = 1e-6,
+        verbose: bool = False,
+        loss: str = 'mse',
+        regularization: Optional[str] = None,
+        alpha: float = 0.0,
+        l1_ratio: float = 0.5,
+        exclude_intercept: bool = True,
+        report_metrics: bool = True
     ) -> None:
         """
         Entrena el modelo mediante descenso de gradiente.
@@ -232,45 +254,27 @@ class PolinomialRegressor(Model):
             Matriz de características con columna de unos para el intercepto
         y_np : np.ndarray
             Vector objetivo
-        **kwargs : dict
-            Parámetros opcionales del descenso de gradiente:
-                - lr (float): Tasa de aprendizaje (default=0.01)
-                - epochs (int): Número máximo de iteraciones (default=1000)
-                - tolerance (float): Criterio de convergencia (default=1e-6)
-                - verbose (bool): Mostrar progreso (default=False)
-                - loss (str): Función de pérdida a utilizar (default='mse')
-                - regularization (str): Tipo de regularización (default=None)
-                - alpha (float): Parámetro de regularización (default=0.0)
-                - l1_ratio (float): Proporción L1 para ElasticNet (default=0.5)
-                - exclude_intercept (bool): No penalizar intercepto (default=True)
+        lr : float
+            Tasa de aprendizaje (default=0.01)
+        epochs : int
+            Número máximo de iteraciones (default=1000)
+        tolerance : float
+            Criterio de convergencia (default=1e-6)
+        verbose : bool
+            Mostrar progreso (default=False)
+        loss : str
+            Función de pérdida a utilizar (default='mse')
+        regularization : str
+            Tipo de regularización (default=None)
+        alpha : float
+            Parámetro de regularización (default=0.0)
+        l1_ratio : float
+            Proporción L1 para ElasticNet (default=0.5)
+        exclude_intercept : bool
+            No penalizar intercepto (default=True)
         """
         if loss not in ['mse', 'mae', 'l1', 'l2']:
             raise ValueError(f"Función de pérdida no reconocida: {loss}")
-        
-
-        params = {
-            'lr': 0.01,
-            'epochs': 1000,
-            'tolerance': 1e-6,
-            'verbose': False,
-            'loss': 'mse',
-            'regularization': None,
-            'alpha': 0.0,
-            'l1_ratio': 0.5,
-            'exclude_intercept': True
-        }
-        
-        params.update(kwargs)
-        
-        lr = params['lr']
-        epochs = params['epochs']
-        tolerance = params['tolerance']
-        verbose = params['verbose']
-        loss = params['loss']
-        regularization = params['regularization']
-        alpha = params['alpha']
-        l1_ratio = params['l1_ratio']
-        exclude_intercept = params['exclude_intercept']
         
         if lr <= 0:
             raise ValueError("La tasa de aprendizaje debe ser mayor que 0")
@@ -285,12 +289,15 @@ class PolinomialRegressor(Model):
         m, n = X_np.shape
         coeffs = np.zeros(n)
         prev_loss = float("inf")
+        best_coeffs = coeffs.copy()
+        min_loss = float("inf")
         
         history = {
             "loss": [], 
             "iterations": 0, 
             "regularization": regularization, 
-            "alpha": alpha
+            "alpha": alpha,
+            "metrics": {} if report_metrics else None
         }
         
         for epoch in range(epochs):
@@ -323,49 +330,67 @@ class PolinomialRegressor(Model):
                 loss, X_np, y_np, coeffs, 
                 regularization, alpha, l1_ratio, exclude_intercept
             )
-            coeffs -= lr * gradients
+            coeffs -= lr * gradients 
+            
+            # Track best coefficients based on validation loss
+            if current_loss < min_loss:
+                min_loss = current_loss
+                best_coeffs = coeffs.copy()
+                
+            # Calculate and store metrics if requested
+            if report_metrics and (epoch % max(1, epochs // 10) == 0):
+                y_pred = X_np @ coeffs
+                metrics = {
+                    "mse": LossFunction.mse(y_np, y_pred),
+                    "r2": 1 - ((y_np - y_pred) ** 2).sum() / ((y_np - y_np.mean()) ** 2).sum(),
+                    "mae": LossFunction.mae(y_np, y_pred)
+                }
+                history["metrics"][epoch] = metrics
         
-        history["iterations"] = epoch + 1
+        # Use best coefficients found
+        coeffs = best_coeffs
         self.intercept_ = coeffs[0]
         self._coef = coeffs[1:]
         
         if self.feature_names is not None and len(self.feature_names) == len(self._coef):
             self.coef_dict = dict(zip(self.feature_names, self._coef))
         
-        # Calc final metrics
-        y_pred = X_np @ coeffs
-        
-        # Calcular la pérdida final sin regularización para reportar métricas puras
-        final_loss = loss_func(y_np, y_pred)
-        final_mse = LossFunction.mse(y_np, y_pred)
-        
-        # Si tenemos regularización, también calculamos la pérdida regularizada final
-        reg_info = {}
-        if regularization is not None and alpha > 0:
-            reg_loss = LossFunction.regularized_loss(
-                loss, y_np, y_pred, coeffs, 
-                regularization, alpha, l1_ratio, exclude_intercept
-            )
-            reg_info = {
-                "regularization_type": regularization,
-                "alpha": alpha,
-                "l1_ratio": l1_ratio if regularization == 'elasticnet' else None,
-                f"final_reg_{loss}": reg_loss
+        # Calculate final metrics only if requested
+        if report_metrics:
+            y_pred = X_np @ coeffs
+            final_metrics = {
+                "mse": LossFunction.mse(y_np, y_pred),
+                "r2": 1 - ((y_np - y_pred) ** 2).sum() / ((y_np - y_np.mean()) ** 2).sum(),
+                "mae": LossFunction.mae(y_np, y_pred)
             }
+            
+            # Add regularization metrics if applicable
+            if regularization is not None and alpha > 0:
+                reg_loss = LossFunction.regularized_loss(
+                    loss, y_np, y_pred, coeffs,
+                    regularization, alpha, l1_ratio, exclude_intercept
+                )
+                final_metrics[f"reg_{loss}"] = reg_loss
+        else:
+            final_metrics = {}
 
         self._training_info = {
             "method": "gradient_descent",
-            "params": params,
-            "final_epoch": epoch + 1,
+            "learning_rate": lr,
             "epochs": epochs,
+            "tolerance": tolerance,
+            "loss_type": loss,
+            "final_epoch": epoch + 1,
             "converged": abs(prev_loss - current_loss) < tolerance,
             "history": history,
-            "loss_type": loss,
-            f"final_{loss}": final_loss,
-            "final_mse": final_mse,
-            **reg_info
-        }   
-    
+            "metrics": final_metrics,
+            "regularization_info": {
+                "type": regularization,
+                "alpha": alpha,
+                "l1_ratio": l1_ratio if regularization == 'elasticnet' else None
+            } if regularization else None
+        }
+
     def _build_design_matrix(self, X: pd.DataFrame, degree: int = 1) -> tuple:
         """
         Construye la matriz de diseño para regresión polinómica.
