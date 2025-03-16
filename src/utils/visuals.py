@@ -450,7 +450,7 @@ def _compare_impact_vs_price(impacts, property_dfs, feature_name, y_lim=None, x_
         "ax2": ax2
     }
 
-def plot_regularization_path(
+def plot_regularization_path( # hacer que devuelva el mejor modelo 
     X_train: pd.DataFrame,
     X_test: pd.DataFrame,
     y_train: pd.Series,
@@ -468,15 +468,16 @@ def plot_regularization_path(
     seed: int = 42,
     cv_folds: int = 5,
     show_plots: bool = False,
-    plot_types: list = ['coefs', 'cv', 'val', 'combined']
+    plot_types: list = ['coefs', 'cv', 'val', 'combined'],
+    metrics: list = ['mse']
 ) -> tuple:
     """
-    Visualiza el camino de regularización y el ECM en tres subplots:
+    Visualiza el camino de regularización y las métricas seleccionadas en varios subplots:
     1) Coeficientes vs. alpha
-    2) ECM por validación cruzada vs. alpha
-    3) ECM en conjunto de validación vs. alpha
-    
-    Parameters
+    2) Métrica(s) por validación cruzada vs. alpha (en subplots separados)
+    3) Métrica(s) en conjunto de validación vs. alpha (en subplots separados)
+
+    Parámetros
     ----------
     X_train : pd.DataFrame
         Datos de entrenamiento
@@ -515,32 +516,47 @@ def plot_regularization_path(
     plot_types : list, default=['coefs', 'cv', 'val', 'combined']
         Lista de gráficos a generar. Opciones:
         - 'coefs': Camino de regularización (coeficientes vs alpha)
-        - 'cv': Error por validación cruzada vs alpha
-        - 'val': Error en conjunto de validación vs alpha
+        - 'cv': Métrica por validación cruzada vs alpha
+        - 'val': Métrica en conjunto de validación vs alpha
         - 'combined': Los tres gráficos en una sola figura
         - 'coefs+cv': Coeficientes y error CV en una figura
         - 'coefs+val': Coeficientes y error validación en una figura
         - 'cv+val': Error CV y error validación en una figura
-    
+    metrics : list, default=['mse']
+        Lista de métricas a utilizar. Opciones: 'mse', 'r2' o ambas.
+
     Returns
     -------
     tuple
         (figuras, coeficientes, cv_scores, best_metrics)
         figuras: dict con las figuras individuales para cada tipo de gráfico
         coeficientes: array con los coeficientes para cada valor de alpha
-        cv_scores: dict con los puntajes de validación cruzada
-        best_metrics: dict con métricas y mejores valores de alpha
+        cv_scores: dict con los puntajes de validación cruzada para cada métrica
+        best_metrics: dict con las métricas y mejores valores de alpha para cada métrica
     """
     if alphas is None:
         alphas = np.linspace(0, 100, 100)
     
+    # Validar métricas
+    valid_metrics = ['mse', 'r2']
+    for m in metrics:
+        if m not in valid_metrics:
+            raise ValueError(f"Unsupported metric '{m}': choose from {valid_metrics}")
+    
+    # Definir etiquetas y criterios según las métricas
+    metric_labels = {
+        'mse': 'Error Cuadrático Medio (promedio de folds)',
+        'r2': 'Coeficiente de Determinación (R^2)'
+    }
+    better_is_lower = {
+        'mse': True,
+        'r2': False
+    }
+    
     feature_names = X_train.columns
     coefs = []
-    cv_scores = {alpha: [] for alpha in alphas}
-    validation_metrics = {
-        'mse': [],
-        'r2': []
-    }
+    cv_scores = {metric: {alpha: [] for alpha in alphas} for metric in metrics}
+    validation_metrics = {metric: [] for metric in metrics}
     
     # Transform target if needed
     y_train_transformed = transform_target(y_train) if transform_target else y_train
@@ -572,15 +588,17 @@ def plot_regularization_path(
         
         # Evaluar en conjunto de validación (X_test)
         y_pred_val = model_full.predict(X_test)
-        mse_val = model_full.mse_score(X_test, y_test_transformed)
-        r2_val = 1 - ((y_test_transformed - y_pred_val) ** 2).sum() / ((y_test_transformed - y_test_transformed.mean()) ** 2).sum()
         
-        validation_metrics['mse'].append(mse_val)
-        validation_metrics['r2'].append(r2_val)
+        # Calcular todas las métricas solicitadas
+        for metric in metrics:
+            if metric == 'mse':
+                val_score = model_full.mse_score(X_test, y_test_transformed)
+            elif metric == 'r2':
+                val_score = 1 - ((y_test_transformed - y_pred_val) ** 2).sum() / ((y_test_transformed - y_test_transformed.mean()) ** 2).sum()
+            
+            validation_metrics[metric].append(val_score)
         
-        # 2. Ejecutar validación cruzada para obtener ECM robusto
-        fold_scores = []
-        
+        # 2. Ejecutar validación cruzada para obtener métricas robustas
         for fold in range(cv_folds):
             # Create train/val split for this fold
             val_idx = indices[fold * fold_size:(fold + 1) * fold_size]
@@ -606,26 +624,54 @@ def plot_regularization_path(
                 learning_rate=learning_rate
             )
             
-            # Calculate MSE for this fold
-            mse = model_fold.mse_score(X_fold_val, y_fold_val)
-            fold_scores.append(mse)
-        
-        # Store mean CV score for this alpha
-        cv_scores[alpha] = np.mean(fold_scores)
+            # Calculate metrics for this fold
+            y_pred_fold = model_fold.predict(X_fold_val)
+            
+            for metric in metrics:
+                if metric == 'mse':
+                    score = model_fold.mse_score(X_fold_val, y_fold_val)
+                elif metric == 'r2':
+                    score = 1 - ((y_fold_val - y_pred_fold) ** 2).sum() / ((y_fold_val - y_fold_val.mean()) ** 2).sum()
+                
+                if fold == 0:
+                    cv_scores[metric][alpha] = [score]
+                else:
+                    cv_scores[metric][alpha].append(score)
         
         if print_metrics:
-            print(f"Alpha: {alpha:.4f}, CV MSE: {cv_scores[alpha]:.4f}, Validation MSE: {mse_val:.4f}")
+            metric_strings = []
+            for metric in metrics:
+                cv_mean = np.mean(cv_scores[metric][alpha])
+                val_score = validation_metrics[metric][-1]
+                metric_strings.append(f"CV {metric_labels[metric]}: {cv_mean:.4f}, Val {metric_labels[metric]}: {val_score:.4f}")
+            print(f"Alpha: {alpha:.4f}, " + ", ".join(metric_strings))
     
     # Convert coefficients to array
     coefs_array = np.array(coefs)
     
-    # Preparar métricas
-    cv_values = list(cv_scores.values())
-    validation_mse_array = np.array(validation_metrics['mse'])
-    validation_r2_array = np.array(validation_metrics['r2'])
+    # Calcular valores medios de validación cruzada
+    cv_values = {metric: [np.mean(cv_scores[metric][alpha]) for alpha in alphas] for metric in metrics}
     
-    best_alpha_cv = alphas[np.argmin(cv_values)]
-    best_alpha_val = alphas[np.argmin(validation_mse_array)]
+    # Determinar mejores alphas para cada métrica
+    best_metrics = {}
+    for metric in metrics:
+        if better_is_lower[metric]:
+            best_alpha_cv = alphas[np.argmin(cv_values[metric])]
+            best_cv_value = min(cv_values[metric])
+            best_alpha_val = alphas[np.argmin(validation_metrics[metric])]
+            best_val_value = min(validation_metrics[metric])
+        else:
+            best_alpha_cv = alphas[np.argmax(cv_values[metric])]
+            best_cv_value = max(cv_values[metric])
+            best_alpha_val = alphas[np.argmax(validation_metrics[metric])]
+            best_val_value = max(validation_metrics[metric])
+        
+        best_metrics[metric] = {
+            'best_alpha_cv': best_alpha_cv,
+            'best_cv_score': best_cv_value,
+            'best_alpha_val': best_alpha_val,
+            'best_val_score': best_val_value
+        }
     
     # Preparar datos para gráficos
     plot_data = pd.DataFrame(coefs_array, columns=feature_names)
@@ -652,70 +698,340 @@ def plot_regularization_path(
         ax.axhline(y=0, color='k', linestyle='-', alpha=0.3)
         ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
     
-    def create_cv_plot(ax):
-        ax.plot(alphas, cv_values, '-o', color='blue')
-        ax.axvline(x=best_alpha_cv, color='r', linestyle='--', 
-                  label=f'Mejor α={best_alpha_cv:.4f}\nECM={min(cv_values):.4f}')
+    def create_cv_plot(fig, metric_index, num_metrics):
+        """Crear un subplot para métricas de CV"""
+        metric = metrics[metric_index]
+        ax = fig.add_subplot(1, num_metrics, metric_index + 1)
+        
+        color = f'C{metric_index}'
+        ax.plot(alphas, cv_values[metric], '-o', color=color, linewidth=2, 
+                label=f'{metric_labels[metric]} (CV)')
+        
+        best_alpha = best_metrics[metric]['best_alpha_cv']
+        best_score = best_metrics[metric]['best_cv_score']
+        ax.axvline(x=best_alpha, color=color, linestyle='--', 
+                label=f'Mejor α={best_alpha:.4f}\n{metric_labels[metric]}={best_score:.4f}')
         
         ax.set_xlabel('alpha (regularización)')
-        ax.set_ylabel('Error Cuadrático Medio')
-        ax.set_title(f'ECM por Validación Cruzada\n{cv_folds}-fold CV')
+        ax.set_ylabel(f'{metric_labels[metric]}')
+        ax.set_title(f'{metric_labels[metric]} por CV ({cv_folds}-fold)')
         ax.grid(True, alpha=0.3)
         ax.legend()
-    
-    def create_val_plot(ax):
-        ax.plot(alphas, validation_mse_array, '-o', color='green')
-        ax.axvline(x=best_alpha_val, color='r', linestyle='--', 
-                  label=f'Mejor α={best_alpha_val:.4f}\nECM={min(validation_mse_array):.4f}')
+        return ax
+
+    def create_val_plot(fig, metric_index, num_metrics):
+        """Crear un subplot para métricas de validación"""
+        metric = metrics[metric_index]
+        ax = fig.add_subplot(1, num_metrics, metric_index + 1)
+        
+        color = f'C{metric_index + 2}'  # Usar colores diferentes a los de CV
+        ax.plot(alphas, validation_metrics[metric], '-o', color=color, linewidth=2,
+            label=f'{metric_labels[metric]} (Val)')
+        
+        best_alpha = best_metrics[metric]['best_alpha_val']
+        best_score = best_metrics[metric]['best_val_score']
+        ax.axvline(x=best_alpha, color=color, linestyle='--', 
+                label=f'Mejor α={best_alpha:.4f}\n{metric_labels[metric]}={best_score:.4f}')
         
         ax.set_xlabel('alpha (regularización)')
-        ax.set_ylabel('Error Cuadrático Medio')
-        ax.set_title(f'ECM en Conjunto de Validación\nTest Set')
+        ax.set_ylabel(f'{metric_labels[metric]}')
+        ax.set_title(f'{metric_labels[metric]} en Validación')
         ax.grid(True, alpha=0.3)
         ax.legend()
-    
+        return ax
+
     # Crear figuras individuales
     if 'coefs' in plot_types:
         fig_coefs = plt.figure(figsize=(figsize[0]//3, figsize[1]))
         ax_coefs = fig_coefs.add_subplot(1, 1, 1)
         create_coefs_plot(ax_coefs)
         figures['coefs'] = {'fig': fig_coefs, 'ax': ax_coefs}
-    
+
     if 'cv' in plot_types:
-        fig_cv = plt.figure(figsize=(figsize[0]//3, figsize[1]))
-        ax_cv = fig_cv.add_subplot(1, 1, 1)
-        create_cv_plot(ax_cv)
-        figures['cv'] = {'fig': fig_cv, 'ax': ax_cv}
-    
+        # Cambio: usar layout horizontal (1 fila, múltiples columnas)
+        fig_cv = plt.figure(figsize=(figsize[0], figsize[1]//2))
+        axes_cv = []
+        for i in range(len(metrics)):
+            ax = create_cv_plot(fig_cv, i, len(metrics))
+            axes_cv.append(ax)
+        figures['cv'] = {'fig': fig_cv, 'axes': axes_cv}
+
     if 'val' in plot_types:
-        fig_val = plt.figure(figsize=(figsize[0]//3, figsize[1]))
-        ax_val = fig_val.add_subplot(1, 1, 1)
-        create_val_plot(ax_val)
-        figures['val'] = {'fig': fig_val, 'ax': ax_val}
-    
+        # Cambio: usar layout horizontal (1 fila, múltiples columnas)
+        fig_val = plt.figure(figsize=(figsize[0], figsize[1]//2))
+        axes_val = []
+        for i in range(len(metrics)):
+            ax = create_val_plot(fig_val, i, len(metrics))
+            axes_val.append(ax)
+        figures['val'] = {'fig': fig_val, 'axes': axes_val}
+
     # Crear figuras combinadas
     if 'combined' in plot_types:
-        fig_combined, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=figsize)
-        create_coefs_plot(ax1)
-        create_cv_plot(ax2)
-        create_val_plot(ax3)
-        figures['combined'] = {'fig': fig_combined, 'axes': [ax1, ax2, ax3]}
-    
+        # Cambio: ajustar layout para que sea más horizontal
+        fig_combined = plt.figure(figsize=figsize)
+        
+        # Si hay una sola métrica, usar 3 columnas y 1 fila
+        if len(metrics) == 1:
+            gs = fig_combined.add_gridspec(1, 3)
+            
+            # Plot coefs
+            ax_coefs = fig_combined.add_subplot(gs[0, 0])
+            create_coefs_plot(ax_coefs)
+            
+            # Plot CV metric
+            metric = metrics[0]
+            ax_cv = fig_combined.add_subplot(gs[0, 1])
+            color = 'C0'
+            ax_cv.plot(alphas, cv_values[metric], '-o', color=color, linewidth=2, 
+                    label=f'{metric_labels[metric]} (CV)')
+            
+            best_alpha = best_metrics[metric]['best_alpha_cv']
+            best_score = best_metrics[metric]['best_cv_score']
+            ax_cv.axvline(x=best_alpha, color=color, linestyle='--', 
+                        label=f'Mejor α={best_alpha:.4f}\n{metric_labels[metric]}={best_score:.4f}')
+            
+            ax_cv.set_xlabel('alpha (regularización)')
+            ax_cv.set_ylabel(f'{metric_labels[metric]}')
+            ax_cv.set_title(f'{metric_labels[metric]} por CV ({cv_folds}-fold)')
+            ax_cv.grid(True, alpha=0.3)
+            ax_cv.legend()
+            
+            # Plot Val metric
+            ax_val = fig_combined.add_subplot(gs[0, 2])
+            color = 'C2'
+            ax_val.plot(alphas, validation_metrics[metric], '-o', color=color, linewidth=2,
+                    label=f'{metric_labels[metric]} (Val)')
+            
+            best_alpha = best_metrics[metric]['best_alpha_val']
+            best_score = best_metrics[metric]['best_val_score']
+            ax_val.axvline(x=best_alpha, color=color, linestyle='--', 
+                        label=f'Mejor α={best_alpha:.4f}\n{metric_labels[metric]}={best_score:.4f}')
+            
+            ax_val.set_xlabel('alpha (regularización)')
+            ax_val.set_ylabel(f'{metric_labels[metric]}')
+            ax_val.set_title(f'{metric_labels[metric]} en Validación')
+            ax_val.grid(True, alpha=0.3)
+            ax_val.legend()
+            
+            figures['combined'] = {
+                'fig': fig_combined, 
+                'ax_coefs': ax_coefs, 
+                'axes_cv': [ax_cv],
+                'axes_val': [ax_val]
+            }
+        else:
+            # Si hay múltiples métricas, usar 3 filas (coefs, cv, val)
+            # con columnas según el número de métricas
+            gs = fig_combined.add_gridspec(3, max(1, len(metrics)))
+            
+            # Plot coefs (ocupa toda la primera fila)
+            ax_coefs = fig_combined.add_subplot(gs[0, :])
+            create_coefs_plot(ax_coefs)
+            
+            # Plot CV metrics (segunda fila, una columna por métrica)
+            axes_cv = []
+            for i in range(len(metrics)):
+                ax_cv = fig_combined.add_subplot(gs[1, i])
+                metric = metrics[i]
+                color = f'C{i}'
+                ax_cv.plot(alphas, cv_values[metric], '-o', color=color, linewidth=2, 
+                        label=f'{metric_labels[metric]} (CV)')
+                
+                best_alpha = best_metrics[metric]['best_alpha_cv']
+                best_score = best_metrics[metric]['best_cv_score']
+                ax_cv.axvline(x=best_alpha, color=color, linestyle='--', 
+                            label=f'Mejor α={best_alpha:.4f}\n{metric_labels[metric]}={best_score:.4f}')
+                
+                ax_cv.set_xlabel('alpha (regularización)')
+                ax_cv.set_ylabel(f'{metric_labels[metric]}')
+                ax_cv.set_title(f'{metric_labels[metric]} por CV ({cv_folds}-fold)')
+                ax_cv.grid(True, alpha=0.3)
+                ax_cv.legend()
+                axes_cv.append(ax_cv)
+            
+            # Plot Validation metrics (tercera fila, una columna por métrica)
+            axes_val = []
+            for i in range(len(metrics)):
+                ax_val = fig_combined.add_subplot(gs[2, i])
+                metric = metrics[i]
+                color = f'C{i+2}'  # Usar colores diferentes a los de CV
+                ax_val.plot(alphas, validation_metrics[metric], '-o', color=color, linewidth=2,
+                        label=f'{metric_labels[metric]} (Val)')
+                
+                best_alpha = best_metrics[metric]['best_alpha_val']
+                best_score = best_metrics[metric]['best_val_score']
+                ax_val.axvline(x=best_alpha, color=color, linestyle='--', 
+                            label=f'Mejor α={best_alpha:.4f}\n{metric_labels[metric]}={best_score:.4f}')
+                
+                ax_val.set_xlabel('alpha (regularización)')
+                ax_val.set_ylabel(f'{metric_labels[metric]}')
+                ax_val.set_title(f'{metric_labels[metric]} en Validación')
+                ax_val.grid(True, alpha=0.3)
+                ax_val.legend()
+                axes_val.append(ax_val)
+            
+            figures['combined'] = {
+                'fig': fig_combined, 
+                'ax_coefs': ax_coefs, 
+                'axes_cv': axes_cv,
+                'axes_val': axes_val
+            }
+
     # Combinaciones adicionales
     if 'coefs+cv' in plot_types:
-        fig_coefs_cv, (ax1, ax2) = plt.subplots(1, 2, figsize=(figsize[0]//3*2, figsize[1]))
-        create_coefs_plot(ax1)
-        create_cv_plot(ax2)
-        figures['coefs+cv'] = {'fig': fig_coefs_cv, 'axes': [ax1, ax2]}
-    
-    if 'coefs+val' in plot_types:
-        fig_coefs_val, (ax1, ax2) = plt.subplots(1, 2, figsize=(figsize[0]//3*2, figsize[1]))
-        create_coefs_plot(ax1)
-        create_val_plot(ax2)
-        figures['coefs+val'] = {'fig': fig_coefs_val, 'axes': [ax1, ax2]}
-    
+        # Cambio: layout horizontal para métricas CV
+        fig_coefs_cv = plt.figure(figsize=figsize)
+        gs = fig_coefs_cv.add_gridspec(2, 1)
+        
+        # Plot coefs (ocupa toda la primera fila)
+        ax_coefs = fig_coefs_cv.add_subplot(gs[0, 0])
+        create_coefs_plot(ax_coefs)
+        
+        # Plot CV metrics (segunda fila, una columna por métrica)
+        if len(metrics) == 1:
+            axes_cv = []
+            metric = metrics[0]
+            ax = fig_coefs_cv.add_subplot(gs[1, 0])
+            color = 'C0'
+            ax.plot(alphas, cv_values[metric], '-o', color=color, linewidth=2, 
+                    label=f'{metric_labels[metric]} (CV)')
+            
+            best_alpha = best_metrics[metric]['best_alpha_cv']
+            best_score = best_metrics[metric]['best_cv_score']
+            ax.axvline(x=best_alpha, color=color, linestyle='--', 
+                    label=f'Mejor α={best_alpha:.4f}\n{metric_labels[metric]}={best_score:.4f}')
+            
+            ax.set_xlabel('alpha (regularización)')
+            ax.set_ylabel(f'{metric_labels[metric]}')
+            ax.set_title(f'{metric_labels[metric]} por CV ({cv_folds}-fold)')
+            ax.grid(True, alpha=0.3)
+            ax.legend()
+            axes_cv.append(ax)
+        else:
+            # Crear subplots horizontales para múltiples métricas
+            axes_cv = []
+            gs_metrics = gs[1, 0].subgridspec(1, len(metrics))
+            for i in range(len(metrics)):
+                ax = fig_coefs_cv.add_subplot(gs_metrics[0, i])
+                metric = metrics[i]
+                color = f'C{i}'
+                ax.plot(alphas, cv_values[metric], '-o', color=color, linewidth=2, 
+                        label=f'{metric_labels[metric]} (CV)')
+                
+                best_alpha = best_metrics[metric]['best_alpha_cv']
+                best_score = best_metrics[metric]['best_cv_score']
+                ax.axvline(x=best_alpha, color=color, linestyle='--', 
+                        label=f'Mejor α={best_alpha:.4f}\n{metric_labels[metric]}={best_score:.4f}')
+                
+                ax.set_xlabel('alpha (regularización)')
+                ax.set_ylabel(f'{metric_labels[metric]}')
+                ax.set_title(f'{metric_labels[metric]} por CV ({cv_folds}-fold)')
+                ax.grid(True, alpha=0.3)
+                ax.legend()
+                axes_cv.append(ax)
+        
+        figures['coefs+cv'] = {'fig': fig_coefs_cv, 'ax_coefs': ax_coefs, 'axes_cv': axes_cv}
 
-    
+    if 'coefs+val' in plot_types:
+        # Cambio: layout horizontal para métricas de validación
+        fig_coefs_val = plt.figure(figsize=figsize)
+        gs = fig_coefs_val.add_gridspec(2, 1)
+        
+        # Plot coefs (ocupa toda la primera fila)
+        ax_coefs = fig_coefs_val.add_subplot(gs[0, 0])
+        create_coefs_plot(ax_coefs)
+        
+        # Plot validation metrics (segunda fila, una columna por métrica)
+        if len(metrics) == 1:
+            axes_val = []
+            metric = metrics[0]
+            ax = fig_coefs_val.add_subplot(gs[1, 0])
+            color = 'C2'  # Color distinto al de CV
+            ax.plot(alphas, validation_metrics[metric], '-o', color=color, linewidth=2,
+                label=f'{metric_labels[metric]} (Val)')
+            
+            best_alpha = best_metrics[metric]['best_alpha_val']
+            best_score = best_metrics[metric]['best_val_score']
+            ax.axvline(x=best_alpha, color=color, linestyle='--', 
+                    label=f'Mejor α={best_alpha:.4f}\n{metric_labels[metric]}={best_score:.4f}')
+            
+            ax.set_xlabel('alpha (regularización)')
+            ax.set_ylabel(f'{metric_labels[metric]}')
+            ax.set_title(f'{metric_labels[metric]} en Validación')
+            ax.grid(True, alpha=0.3)
+            ax.legend()
+            axes_val.append(ax)
+        else:
+            # Crear subplots horizontales para múltiples métricas
+            axes_val = []
+            gs_metrics = gs[1, 0].subgridspec(1, len(metrics))
+            for i in range(len(metrics)):
+                ax = fig_coefs_val.add_subplot(gs_metrics[0, i])
+                metric = metrics[i]
+                color = f'C{i+2}'  # Color distinto al de CV
+                ax.plot(alphas, validation_metrics[metric], '-o', color=color, linewidth=2,
+                    label=f'{metric_labels[metric]} (Val)')
+                
+                best_alpha = best_metrics[metric]['best_alpha_val']
+                best_score = best_metrics[metric]['best_val_score']
+                ax.axvline(x=best_alpha, color=color, linestyle='--', 
+                        label=f'Mejor α={best_alpha:.4f}\n{metric_labels[metric]}={best_score:.4f}')
+                
+                ax.set_xlabel('alpha (regularización)')
+                ax.set_ylabel(f'{metric_labels[metric]}')
+                ax.set_title(f'{metric_labels[metric]} en Validación')
+                ax.grid(True, alpha=0.3)
+                ax.legend()
+                axes_val.append(ax)
+        
+        figures['coefs+val'] = {'fig': fig_coefs_val, 'ax_coefs': ax_coefs, 'axes_val': axes_val}
+
+    if 'cv+val' in plot_types:
+        # Cambio: Layout horizontal - una fila por métrica, con CV y Val lado a lado
+        fig_cv_val = plt.figure(figsize=figsize)
+        gs = fig_cv_val.add_gridspec(len(metrics), 2)
+        
+        axes = []
+        for i in range(len(metrics)):
+            # CV plot (columna izquierda)
+            ax_cv = fig_cv_val.add_subplot(gs[i, 0])
+            metric = metrics[i]
+            color = f'C{i}'
+            ax_cv.plot(alphas, cv_values[metric], '-o', color=color, linewidth=2, 
+                    label=f'{metric_labels[metric]} (CV)')
+            
+            best_alpha_cv = best_metrics[metric]['best_alpha_cv']
+            best_cv_score = best_metrics[metric]['best_cv_score']
+            ax_cv.axvline(x=best_alpha_cv, color=color, linestyle='--', 
+                        label=f'Mejor α={best_alpha_cv:.4f}\n{metric_labels[metric]}={best_cv_score:.4f}')
+            
+            ax_cv.set_xlabel('alpha (regularización)')
+            ax_cv.set_ylabel(f'{metric_labels[metric]}')
+            ax_cv.set_title(f'{metric_labels[metric]} por CV ({cv_folds}-fold)')
+            ax_cv.grid(True, alpha=0.3)
+            ax_cv.legend()
+            
+            # Val plot (columna derecha)
+            ax_val = fig_cv_val.add_subplot(gs[i, 1])
+            color = f'C{i+2}'
+            ax_val.plot(alphas, validation_metrics[metric], '-o', color=color, linewidth=2,
+                label=f'{metric_labels[metric]} (Val)')
+            
+            best_alpha_val = best_metrics[metric]['best_alpha_val']
+            best_val_score = best_metrics[metric]['best_val_score']
+            ax_val.axvline(x=best_alpha_val, color=color, linestyle='--', 
+                        label=f'Mejor α={best_alpha_val:.4f}\n{metric_labels[metric]}={best_val_score:.4f}')
+            
+            ax_val.set_xlabel('alpha (regularización)')
+            ax_val.set_ylabel(f'{metric_labels[metric]}')
+            ax_val.set_title(f'{metric_labels[metric]} en Validación')
+            ax_val.grid(True, alpha=0.3)
+            ax_val.legend()
+            
+            axes.append((ax_cv, ax_val))
+        
+        figures['cv+val'] = {'fig': fig_cv_val, 'axes': axes}
+        
     # Aplicar tight_layout a todas las figuras
     for fig_dict in figures.values():
         if 'fig' in fig_dict:
@@ -724,15 +1040,5 @@ def plot_regularization_path(
     # Mostrar plots si se solicitó
     if show_plots:
         plt.show()
-    
-    # Find best alpha values
-    best_metrics = {
-        'best_alpha_cv': best_alpha_cv,
-        'best_mse_cv': min(cv_values),
-        'best_alpha_val': best_alpha_val,
-        'best_mse_val': min(validation_mse_array),
-        'best_alpha_r2': alphas[np.argmax(validation_r2_array)],
-        'best_r2': max(validation_r2_array)
-    }
     
     return figures, coefs_array, cv_scores, best_metrics
