@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 
 from models.clustering.kmeans import KMeans
-from typing import Dict, List, Union, Callable
+from typing import Dict, List, Union, Callable, Tuple
 
 
 def round_input(X, columnas):
@@ -171,36 +171,24 @@ def load_and_prepare_data(
     return X, y, feature_columns
 
 
-def normalize_data(X_train, X_test):
-    """
-    Normalize features using training data statistics.
-    
-    Parameters:
-    -----------
-    X_train : pd.DataFrame
-        Training features
-    X_test : pd.DataFrame
-        Testing features
-        
-    Returns:
-    --------
-    tuple
-        (X_train_normalized, X_test_normalized, normalization_params)
-    """
-    X_train_mean = X_train.mean()
-    X_train_std = X_train.std()
-    
-    X_train_normalized = (X_train - X_train_mean) / X_train_std
-    X_test_normalized = (X_test - X_train_mean) / X_train_std
-    
-    normalization_params = {
-        'mean': X_train_mean,
-        'std': X_train_std
+def _calculate_normalization_params(data: pd.DataFrame) -> Dict:
+    """Calculate normalization parameters from data."""
+    return {
+        'mean': data.mean(),
+        'std': data.std().replace(0, 1)  # Avoid division by zero
     }
+
+def _apply_normalization(data: pd.DataFrame, params: Dict) -> pd.DataFrame:
+    """Apply normalization using given parameters."""
+    return (data - params['mean']) / params['std']
+
+def normalize_data(X_train: pd.DataFrame, X_test: pd.DataFrame) -> tuple:
+    """Normalize features using training data statistics."""
+    params = _calculate_normalization_params(X_train)
+    X_train_normalized = _apply_normalization(X_train, params)
+    X_test_normalized = _apply_normalization(X_test, params)
     
-    return X_train_normalized, X_test_normalized, normalization_params
-
-
+    return X_train_normalized, X_test_normalized, params
 
 
 def print_model_evaluation(model, feature_columns, metrics_results):
@@ -229,6 +217,25 @@ def print_model_evaluation(model, feature_columns, metrics_results):
             print(f"  {feat}: {model.coef_[i]:.6f}")
         print(f"  Intercept: {model.intercept_:.6f}")
 
+
+def _handle_feature_engineering(df: pd.DataFrame, operations: List[Dict]) -> Tuple[pd.DataFrame, Dict]:
+    """Apply feature engineering operations and collect statistics."""
+    new_features = {}
+    feature_stats = {}
+    
+    for op in operations:
+        feature_name = op['name']
+        operation = op['operation']
+        
+        new_features[feature_name] = operation(df) if callable(operation) else df.eval(operation)
+        feature_stats[feature_name] = {
+            'mean': new_features[feature_name].mean(),
+            'std': new_features[feature_name].std(),
+            'min': new_features[feature_name].min(),
+            'max': new_features[feature_name].max()
+        }
+    
+    return pd.DataFrame(new_features), feature_stats
 
 
 def process_dataset(
@@ -259,27 +266,7 @@ def process_dataset(
         ]
     
 
-    new_features_dict = {}
-    feature_stats = {}
-    
-    for op in feature_engineering_ops:
-        feature_name = op['name']
-        operation = op['operation']
-        
-        if isinstance(operation, str):
-            new_features_dict[feature_name] = df.eval(operation)
-        else:
-            new_features_dict[feature_name] = operation(df)
-            
-        feature_stats[feature_name] = {
-            'mean': new_features_dict[feature_name].mean(),
-            'std': new_features_dict[feature_name].std(),
-            'min': new_features_dict[feature_name].min(),
-            'max': new_features_dict[feature_name].max()
-        }
-    
-
-    new_features_df = pd.DataFrame(new_features_dict)
+    new_features_df, feature_stats = _handle_feature_engineering(df, feature_engineering_ops)
     df = pd.concat([df, new_features_df], axis=1)
     
     if location_columns:

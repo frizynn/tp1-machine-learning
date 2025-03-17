@@ -19,38 +19,6 @@ from models.regression.base import (
 
 
 
-# def train_model_for_feature(
-#     model_class: Model,
-#     X,
-#     y,
-#     seed=42,
-# ):
-#     model = model_class()
-
-#     (
-#         X_train,
-#         X_test,
-#         y_train,
-#         y_test,
-#     ) = split_test_train_with_label(
-#         X,
-#         y,
-#         test_size=0.2,
-#         random_state=seed,
-#     )
-
-#     model.fit(
-#         X_train,
-#         y_train,
-#     )
-
-#     return (
-#         model,
-#         X_test,
-#         y_test,
-#     )
-
-
 def evaluate_model(model, X_test, y_test, metrics=None):
     """
     Evaluate model performance using specified metrics.
@@ -194,3 +162,29 @@ def train_and_evaluate_model(
         results['normalization_params'] = normalization_params
     
     return results
+
+
+def get_weights_and_metrics(X, y, lambdas, model_class, test_size=0.2, random_state=42, normalize=True, regularization='l2',
+                            method='pseudo_inverse'):
+
+    X_train, X_test, y_train, y_test = split_test_train_with_label(X, y, test_size=test_size, random_state=random_state, normalize=normalize)
+
+    weights = []
+    mse_scores = []
+    r2_scores = []
+
+    for lambda_ in lambdas:
+        model = model_class()
+        model.fit(X_train, y_train, method=method, alpha=lambda_, regularization=regularization)
+
+
+        coefs = model.get_weights()
+        weights.append(coefs)
+
+        mse_score = model.mse_score(X_test, y_test)
+        r2_score = model.r2_score(X_test, y_test)
+        mse_scores.append(mse_score)
+        r2_scores.append(r2_score)
+
+    weights = np.array(weights)
+    return weights, mse_scores, r2_scores

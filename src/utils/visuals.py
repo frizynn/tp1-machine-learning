@@ -297,3 +297,98 @@ def compare_feature_impact(model_results_dict, property_dfs, feature_name='has_p
         
     return impacts
 
+
+def plot_weights_vs_lambda(lambdas, weights, feature_names):
+    """
+    Grafica los valores de los pesos en función de la regularización λ.
+    
+    Parámetros:
+    - lambdas: Lista o array de valores de λ.
+    - weights: Matriz donde cada columna representa los pesos de una característica en función de λ.
+    - feature_names: Lista de nombres de las características.
+    """
+    plt.figure(figsize=(16, 6))
+    for i in range(min(weights.shape[1], len(feature_names))): 
+        label = feature_names[i] if i < len(feature_names) else f'w{i}'
+        plt.plot(lambdas, weights[:, i], label=label)
+
+    plt.xlabel('Regularization strength (λ)')
+    plt.ylabel('Weight Value')
+    plt.title('Ridge Regression: Weight Values vs Regularization Strength')
+    plt.grid(True, which="both", ls="-", alpha=0.2)
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    plt.show()
+
+def plot_mse_vs_lambda(ax, lambdas, mse_scores):
+    """
+    Grafica el Error Cuadrático Medio (MSE) en función de λ.
+
+    Parámetros:
+    - ax: Objeto de ejes de Matplotlib donde se dibujará el gráfico.
+    - lambdas: Lista o array de valores de λ.
+    - mse_scores: Lista o array de valores de MSE.
+    """
+    ax.plot(lambdas, mse_scores, color='blue')
+    min_mse_idx = np.argmin(mse_scores)
+    min_mse = mse_scores[min_mse_idx]
+    min_lambda = lambdas[min_mse_idx]
+    
+    ax.scatter([min_lambda], [min_mse], color='red', s=100, zorder=5)
+    ax.annotate(f'Min MSE: {min_mse:.4f}\nλ = {min_lambda:.4f}', 
+                xy=(min_lambda, min_mse), xytext=(min_lambda+1, min_mse), 
+                arrowprops=dict(facecolor='black', shrink=0.05, width=1.5))
+    
+    ax.set_xlabel('Regularization strength (λ)')
+    ax.set_ylabel('Error cuadrático medio')
+    ax.set_title('MSE vs λ')
+    ax.grid(True)
+
+    return min_lambda, min_mse
+
+def plot_r2_vs_lambda(ax, lambdas, r2_scores):
+    """
+    Grafica el coeficiente de determinación R² en función de λ.
+
+    Parámetros:
+    - ax: Objeto de ejes de Matplotlib donde se dibujará el gráfico.
+    - lambdas: Lista o array de valores de λ.
+    - r2_scores: Lista o array de valores de R².
+    """
+    ax.plot(lambdas, r2_scores, color='green')
+    max_r2_idx = np.argmax(r2_scores)
+    max_r2 = r2_scores[max_r2_idx]
+    max_lambda = lambdas[max_r2_idx]
+    
+    ax.scatter([max_lambda], [max_r2], color='red', s=100, zorder=5)
+    ax.annotate(f'Max R²: {max_r2:.4f}\nλ = {max_lambda:.4f}', 
+                xy=(max_lambda, max_r2), xytext=(max_lambda+1, max_r2), 
+                arrowprops=dict(facecolor='black', shrink=0.05, width=1.5))
+    
+    ax.set_xlabel('Regularization strength (λ)')
+    ax.set_ylabel('Coeficiente de determinación (R²)')
+    ax.set_title('R² vs λ')
+    ax.grid(True)
+
+    return max_lambda, max_r2
+
+def plot_performance_metrics(lambdas, mse_scores, r2_scores):
+    """
+    Crea subgráficos con las métricas MSE y R² en función de λ.
+
+    Parámetros:
+    - lambdas: Lista o array de valores de λ.
+    - mse_scores: Lista o array de valores de MSE.
+    - r2_scores: Lista o array de valores de R².
+    """
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+    
+    min_lambda, min_mse = plot_mse_vs_lambda(ax1, lambdas, mse_scores)
+    max_lambda, max_r2 = plot_r2_vs_lambda(ax2, lambdas, r2_scores)
+
+
+    plt.tight_layout()
+    plt.suptitle('Métricas de rendimiento vs Regularization Strength', y=1.05, fontsize=16)
+    plt.show()
+
+    return min_lambda, min_mse, max_lambda, max_r2

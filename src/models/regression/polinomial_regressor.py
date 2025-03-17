@@ -474,3 +474,17 @@ class PolinomialRegressor(Model):
             
         return X_np @ coeffs
 
+    def get_weights(self):
+        """
+        Devuelve los coeficientes del modelo como un array numpy.
+        Útil para análisis y visualizaciones de pesos vs regularización.
+        
+        Returns
+        -------
+        np.ndarray
+            Array con los coeficientes del modelo (sin intercepto)
+        """
+        if self._coef is None:
+            raise ValueError("El modelo debe ser entrenado antes de obtener los pesos")
+        return np.array(self._coef)
+
