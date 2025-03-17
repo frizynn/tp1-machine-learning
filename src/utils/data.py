@@ -1,6 +1,9 @@
 import pandas as pd
 import numpy as np
 
+from models.clustering.kmeans import KMeans
+from typing import Dict, List, Union, Callable
+
 
 def round_input(X, columnas):
     """
@@ -124,29 +127,109 @@ def split_test_train_with_label(
     
     return X_train, X_test, y_train, y_test
 
-def split_test_train_without_label(
-    df: pd.DataFrame,
-    test_size: float = 0.2,
-    random_state=42,
+
+
+def load_and_prepare_data(
+    target_column,
+    df=None,
+    data_path=None,
+    feature_columns=None,
+    transform_target=None
 ):
-    np.random.seed(random_state)
-    n = len(df)
-    n_test = int(n * test_size)
-    n_train = n - n_test
-    idx = np.random.permutation(n)
-    df = df.iloc[idx]
-    train, test = (
-        df.iloc[:n_train],
-        df.iloc[n_train:],
-    )
-    return (
-        train,
-        test,
-    )
+    """
+    Load data from a dataframe or file and prepare features and target.
+    
+    Parameters:
+    -----------
+    target_column : str
+        Name of the target variable column
+    df : pd.DataFrame, default=None
+        DataFrame with data
+    data_path : str, default=None
+        Path to CSV file if df is not provided
+    feature_columns : list, default=None
+        List of feature columns to use. If None, uses all columns except target
+    transform_target : callable, default=None
+        Function to transform target variable
+        
+    Returns:
+    --------
+    tuple
+        (X, y, feature_columns)
+    """
+    df = pd.read_csv(data_path) if df is None else df.copy()
+    
+    if transform_target:
+        df[target_column] = transform_target(df[target_column])
+    
+    if feature_columns is None:
+        feature_columns = [col for col in df.columns if col != target_column]
+    
+    X = df[feature_columns]
+    y = df[target_column]
+    
+    return X, y, feature_columns
 
 
-from models.clustering.kmeans import KMeans
-from typing import Dict, List, Union, Callable
+def normalize_data(X_train, X_test):
+    """
+    Normalize features using training data statistics.
+    
+    Parameters:
+    -----------
+    X_train : pd.DataFrame
+        Training features
+    X_test : pd.DataFrame
+        Testing features
+        
+    Returns:
+    --------
+    tuple
+        (X_train_normalized, X_test_normalized, normalization_params)
+    """
+    X_train_mean = X_train.mean()
+    X_train_std = X_train.std()
+    
+    X_train_normalized = (X_train - X_train_mean) / X_train_std
+    X_test_normalized = (X_test - X_train_mean) / X_train_std
+    
+    normalization_params = {
+        'mean': X_train_mean,
+        'std': X_train_std
+    }
+    
+    return X_train_normalized, X_test_normalized, normalization_params
+
+
+
+
+def print_model_evaluation(model, feature_columns, metrics_results):
+    """
+    Print model evaluation results.
+    
+    Parameters:
+    -----------
+    model : Model
+        Trained model instance
+    feature_columns : list
+        List of feature column names
+    metrics_results : dict
+        Dictionary with metric values
+    """
+    print(f"\n=== Model Evaluation ({model.__class__.__name__}) ===")
+    
+    for metric, value in metrics_results.items():
+        print(f"{metric.upper()}: {value:.6f}")
+    
+    try:
+        model.print_coefficients()
+    except:
+        print("\nCoefficients:")
+        for i, feat in enumerate(feature_columns):
+            print(f"  {feat}: {model.coef_[i]:.6f}")
+        print(f"  Intercept: {model.intercept_:.6f}")
+
+
 
 def process_dataset(
     df: pd.DataFrame,
