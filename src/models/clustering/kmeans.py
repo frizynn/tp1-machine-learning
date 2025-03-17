@@ -53,4 +53,10 @@ class KMeans(ClusteringModel):
         if self.centroids_ is None:
             raise ValueError("El modelo no ha sido ajustado aún. Ejecuta fit() primero.")
         return np.array([np.argmin(np.sum((x - self.centroids_) ** 2, axis=1)) for x in X])
+    
+    @property
+    def cluster_centers_(self):
+        """Alias for centroids_ to maintain compatibility with sklearn"""
+        return self.centroids_
+
 

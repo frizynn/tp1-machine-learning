@@ -5,6 +5,8 @@ import seaborn as sns
 import pandas as pd
 from models.regression.linear_regressor import LinearRegressor
 from models.regression.base import Model
+
+
 def visualize_regression_results( #TODO: implementar parametro de que figuras ver
         y_true, 
         y_pred, 
@@ -211,25 +213,24 @@ def _create_qq_plot(residuals, titles, fig_size, save_path, show_figures):
     
     return fig_qq
 
-
-
 def compare_feature_impact(model_results_dict, property_dfs, feature_name='has_pool', 
-                         plot=True, y_lim=None, x_lim=None, currency='$', 
-                         custom_title=None, style='whitegrid', fixed_x_ticks=None, 
-                         fixed_y1_ticks=None, fixed_y2_ticks=None):
+                        currency='$', 
+                         ):
     """
     Compare the impact of a specific feature across different models.
     
     Parameters
     ----------
     model_results_dict : dict
-        Dictionary mapping model names to model results (from train_and_evaluate_model)
+        Dictionary mapping model names to model results (from train_and_evaluate_model),
+        or a single model result dictionary (will be treated as a single model)
     property_dfs : dict
-        Dictionary mapping model names to corresponding DataFrames
+        Dictionary mapping model names to corresponding DataFrames,
+        or a single DataFrame (will be treated as a single model)
     feature_name : str, default='has_pool'
         Name of the feature to analyze impact
-    plot : bool, default=True
-        Whether to generate and display visualization
+    plot : bool, default=False
+        Whether to generate and display visualization (default changed to False)
     y_lim : tuple or None, default=None
         Custom y-axis limits for absolute impact (min, max)
     x_lim : tuple or None, default=None
@@ -252,31 +253,39 @@ def compare_feature_impact(model_results_dict, property_dfs, feature_name='has_p
     dict
         Dictionary containing analysis results for each model
     """
-    # Validate inputs
-    if not isinstance(model_results_dict, dict) or not isinstance(property_dfs, dict):
-        raise ValueError("model_results_dict and property_dfs must be dictionaries")
+
+    if not isinstance(model_results_dict, dict) or (isinstance(model_results_dict, dict) and 'model' in model_results_dict):
+        model_results_dict = {"Modelo": model_results_dict}
+        property_dfs = {"Modelo": property_dfs}
+    
+    if not isinstance(property_dfs, dict):
+        raise ValueError("property_dfs must be a dictionary")
     
     if set(model_results_dict.keys()) != set(property_dfs.keys()):
         raise ValueError("model_results_dict and property_dfs must have the same keys")
     
-    # Calculate impacts and store results
+
     impacts = {}
     for model_name, model_results in model_results_dict.items():
-        if feature_name not in model_results["model"].get_coef_dict():
+
+        coef_dict = None
+        if hasattr(model_results["model"], 'get_coef_dict') and callable(model_results["model"].get_coef_dict):
+            coef_dict = model_results["model"].get_coef_dict()
+        elif hasattr(model_results["model"], 'coef_dict') and model_results["model"].coef_dict:
+            coef_dict = model_results["model"].coef_dict
+        
+        if not coef_dict or feature_name not in coef_dict:
             print(f"Warning: Feature '{feature_name}' not found in model '{model_name}'. Skipping.")
             continue
             
         df = property_dfs[model_name]
-        feature_impact = model_results["model"].get_coef_dict()[feature_name]
+        feature_impact = coef_dict[feature_name]
         avg_property_price = df["price"].mean()
         percentage_impact = (feature_impact / avg_property_price) * 100
         
         display_name = feature_name.replace('_', ' ').replace('has ', '').title()
         
-        print(f"\nImpact of adding {display_name} for {model_name}:")
-        print(f"- Absolute value added: {currency}{feature_impact:.2f}")
-        print(f"- Average property price: {currency}{avg_property_price:.2f}")
-        print(f"- Percentage increase on average: {percentage_impact:.2f}%")
+        
         
         impacts[model_name] = {
             "feature_name": feature_name,
@@ -285,170 +294,10 @@ def compare_feature_impact(model_results_dict, property_dfs, feature_name='has_p
             "average_price": avg_property_price,
             "percentage_impact": percentage_impact
         }
-    
-    if plot and impacts:
-        plot_result = _compare_impact_vs_price(
-            impacts, 
-            property_dfs,
-            feature_name=feature_name.replace('_', ' ').replace('has ', '').title(), 
-            y_lim=y_lim,
-            x_lim=x_lim,
-            currency=currency,
-            custom_title=custom_title,
-            style=style,
-            fixed_x_ticks=fixed_x_ticks,
-            fixed_y1_ticks=fixed_y1_ticks,
-            fixed_y2_ticks=fixed_y2_ticks
-        )
-    
+        
     return impacts
-def _compare_impact_vs_price(impacts, property_dfs, feature_name, y_lim=None, x_lim=None, 
-                            num_points=10, currency='$', custom_title=None, style='whitegrid', 
-                            fixed_x_ticks=None, fixed_y1_ticks=None, fixed_y2_ticks=None):
-    """
-    Visualize how impact of a feature varies across different property price ranges for multiple models.
-    
-    Parameters
-    ----------
-    impacts : dict
-        Dictionary with impact analysis results for each model
-    property_dfs : dict
-        Dictionary with property DataFrames for each model
-    feature_name : str
-        Name of the feature for titles and labels
-    y_lim : tuple or None, default=None
-        Custom y-axis limits for absolute impact (min, max)
-    x_lim : tuple or None, default=None
-        Custom x-axis limits for price range (min, max)
-    num_points : int, default=10
-        Number of points to use in the visualization
-    currency : str, default='$'
-        Currency symbol to use in labels and titles
-    custom_title : str or None, default=None
-        Custom plot title; if None a default is generated
-    style : str, default='whitegrid'
-        Seaborn style to use
-    fixed_x_ticks : array-like or None, default=None
-        Custom tick positions for x-axis
-    fixed_y1_ticks : array-like or None, default=None
-        Custom tick positions for primary y-axis (absolute impact)
-    fixed_y2_ticks : array-like or None, default=None
-        Custom tick positions for secondary y-axis (percentage impact)
-    
-    Returns
-    -------
-    dict
-        Dictionary containing the plot objects
-    """
-    # Apply Seaborn style
-    sns.set_style(style)
-    
-    # Create figure with two subplots (one above the other)
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
-    
-    # Determine price range for x-axis
-    if x_lim:
-        min_price, max_price = x_lim
-    else:
-        min_prices = [max(10, df["price"].min()) for df in property_dfs.values()]
-        max_prices = [df["price"].max() for df in property_dfs.values()]
-        min_price = min(min_prices)
-        max_price = max(max_prices)
-    
-    # Ensure min_price is not zero to avoid division by zero
-    min_price = max(0.1, min_price)  # Using 0.1 as a small positive value
-    
-    property_prices = np.linspace(min_price, max_price, num_points)
-    
-    # Color palette for different models
-    model_colors = plt.cm.tab10(np.linspace(0, 1, len(impacts)))
-    
-    # Plot lines for each model
-    abs_lines, perc_lines = [], []
-    for i, (model_name, impact) in enumerate(impacts.items()):
-        # Calculate absolute and percentage values
-        impact_value = impact["absolute_impact"]
-        absolute_values = [impact_value] * num_points
-        
-        # Safe division to avoid zero division errors
-        percent_values = [impact_value / max(0.1, price) * 100 for price in property_prices]
-        
-        # Create DataFrame for plotting
-        plot_data = pd.DataFrame({
-            'Property Price': property_prices,
-            'Absolute Impact': absolute_values,
-            'Percentage Impact': percent_values
-        })
-        
-        # Plot absolute impact line (in upper subplot)
-        abs_line = ax1.plot(property_prices, absolute_values, 
-                           color=model_colors[i], linewidth=2.5, marker='o', markersize=6,
-                           label=f"{model_name} ({currency}{impact_value:.2f})")
-        abs_lines.extend(abs_line)
-        
-        # Plot percentage impact line (in lower subplot)
-        perc_line = ax2.plot(property_prices, percent_values, 
-                            color=model_colors[i], linewidth=2.5, marker='x', markersize=6, 
-                            label=f"{model_name} ({impact['percentage_impact']:.2f}%)")
-        perc_lines.extend(perc_line)
-    
-    # Set axis labels and titles for each subplot
-    ax1.set_ylabel(f'Impacto Absoluto ({currency})', fontsize=12)
-    ax1.set_title('Impacto Absoluto por Precio de Propiedad', fontsize=12)
-    
-    ax2.set_xlabel(f'Precio de la Propiedad ({currency})', fontsize=12)
-    ax2.set_ylabel('Impacto Porcentual (%)', fontsize=12)
-    ax2.set_title('Impacto Porcentual por Precio de Propiedad', fontsize=12)
-    
-    # Set custom limits if provided
-    if x_lim:
-        ax1.set_xlim(x_lim)
-        ax2.set_xlim(x_lim)
-    if y_lim:
-        ax1.set_ylim(y_lim)
-    
-    # Configure x-axis ticks (only needed for bottom subplot since sharex=True)
-    if fixed_x_ticks is not None:
-        ax2.set_xticks(fixed_x_ticks)
-        tick_labels = [f"{currency}{x/1000:.0f}k" for x in fixed_x_ticks]
-        ax2.set_xticklabels(tick_labels, rotation=45)
-    else:
-        step = max(1, num_points // 5)
-        price_labels = [f"{currency}{price/1000:.0f}k" for price in property_prices]
-        ax2.set_xticks(property_prices[::step])
-        ax2.set_xticklabels(price_labels[::step], rotation=45)
-    
-    # Configure y-axis ticks
-    if fixed_y1_ticks is not None:
-        ax1.set_yticks(fixed_y1_ticks)
-    if fixed_y2_ticks is not None:
-        ax2.set_yticks(fixed_y2_ticks)
-    
-    # Set overall title for the figure
-    if custom_title:
-        title = custom_title
-    else:
-        title = f'Comparación del Impacto de {feature_name} en el Valor de la Propiedad'
-    fig.suptitle(title, fontsize=14, fontweight='bold')
-    
-    # Create legends for each subplot
-    ax1.legend(loc='best', title='Modelos (Valor Absoluto)', frameon=True, framealpha=0.9)
-    ax2.legend(loc='best', title='Modelos (Valor Porcentual)', frameon=True, framealpha=0.9)
-    
-    # Add grid and other styling to both subplots
-    for ax in [ax1, ax2]:
-        ax.grid(True, alpha=0.3)
-        sns.despine(ax=ax, left=False, bottom=False)
-    
-    plt.tight_layout()
-    fig.subplots_adjust(top=0.9)  # Make space for the overall title
-    plt.show()
-    
-    return {
-        "fig": fig,
-        "ax1": ax1,
-        "ax2": ax2
-    }
+
+
 
 def plot_regularization_path( # hacer que devuelva el mejor modelo 
     X_train: pd.DataFrame,
@@ -765,119 +614,7 @@ def plot_regularization_path( # hacer que devuelva el mejor modelo
             axes_val.append(ax)
         figures['val'] = {'fig': fig_val, 'axes': axes_val}
 
-    # Crear figuras combinadas
-    if 'combined' in plot_types:
-        # Cambio: ajustar layout para que sea más horizontal
-        fig_combined = plt.figure(figsize=figsize)
-        
-        # Si hay una sola métrica, usar 3 columnas y 1 fila
-        if len(metrics) == 1:
-            gs = fig_combined.add_gridspec(1, 3)
-            
-            # Plot coefs
-            ax_coefs = fig_combined.add_subplot(gs[0, 0])
-            create_coefs_plot(ax_coefs)
-            
-            # Plot CV metric
-            metric = metrics[0]
-            ax_cv = fig_combined.add_subplot(gs[0, 1])
-            color = 'C0'
-            ax_cv.plot(alphas, cv_values[metric], '-o', color=color, linewidth=2, 
-                    label=f'{metric_labels[metric]} (CV)')
-            
-            best_alpha = best_metrics[metric]['best_alpha_cv']
-            best_score = best_metrics[metric]['best_cv_score']
-            ax_cv.axvline(x=best_alpha, color=color, linestyle='--', 
-                        label=f'Mejor α={best_alpha:.4f}\n{metric_labels[metric]}={best_score:.4f}')
-            
-            ax_cv.set_xlabel('alpha (regularización)')
-            ax_cv.set_ylabel(f'{metric_labels[metric]}')
-            ax_cv.set_title(f'{metric_labels[metric]} por CV ({cv_folds}-fold)')
-            ax_cv.grid(True, alpha=0.3)
-            ax_cv.legend()
-            
-            # Plot Val metric
-            ax_val = fig_combined.add_subplot(gs[0, 2])
-            color = 'C2'
-            ax_val.plot(alphas, validation_metrics[metric], '-o', color=color, linewidth=2,
-                    label=f'{metric_labels[metric]} (Val)')
-            
-            best_alpha = best_metrics[metric]['best_alpha_val']
-            best_score = best_metrics[metric]['best_val_score']
-            ax_val.axvline(x=best_alpha, color=color, linestyle='--', 
-                        label=f'Mejor α={best_alpha:.4f}\n{metric_labels[metric]}={best_score:.4f}')
-            
-            ax_val.set_xlabel('alpha (regularización)')
-            ax_val.set_ylabel(f'{metric_labels[metric]}')
-            ax_val.set_title(f'{metric_labels[metric]} en Validación')
-            ax_val.grid(True, alpha=0.3)
-            ax_val.legend()
-            
-            figures['combined'] = {
-                'fig': fig_combined, 
-                'ax_coefs': ax_coefs, 
-                'axes_cv': [ax_cv],
-                'axes_val': [ax_val]
-            }
-        else:
-            # Si hay múltiples métricas, usar 3 filas (coefs, cv, val)
-            # con columnas según el número de métricas
-            gs = fig_combined.add_gridspec(3, max(1, len(metrics)))
-            
-            # Plot coefs (ocupa toda la primera fila)
-            ax_coefs = fig_combined.add_subplot(gs[0, :])
-            create_coefs_plot(ax_coefs)
-            
-            # Plot CV metrics (segunda fila, una columna por métrica)
-            axes_cv = []
-            for i in range(len(metrics)):
-                ax_cv = fig_combined.add_subplot(gs[1, i])
-                metric = metrics[i]
-                color = f'C{i}'
-                ax_cv.plot(alphas, cv_values[metric], '-o', color=color, linewidth=2, 
-                        label=f'{metric_labels[metric]} (CV)')
-                
-                best_alpha = best_metrics[metric]['best_alpha_cv']
-                best_score = best_metrics[metric]['best_cv_score']
-                ax_cv.axvline(x=best_alpha, color=color, linestyle='--', 
-                            label=f'Mejor α={best_alpha:.4f}\n{metric_labels[metric]}={best_score:.4f}')
-                
-                ax_cv.set_xlabel('alpha (regularización)')
-                ax_cv.set_ylabel(f'{metric_labels[metric]}')
-                ax_cv.set_title(f'{metric_labels[metric]} por CV ({cv_folds}-fold)')
-                ax_cv.grid(True, alpha=0.3)
-                ax_cv.legend()
-                axes_cv.append(ax_cv)
-            
-            # Plot Validation metrics (tercera fila, una columna por métrica)
-            axes_val = []
-            for i in range(len(metrics)):
-                ax_val = fig_combined.add_subplot(gs[2, i])
-                metric = metrics[i]
-                color = f'C{i+2}'  # Usar colores diferentes a los de CV
-                ax_val.plot(alphas, validation_metrics[metric], '-o', color=color, linewidth=2,
-                        label=f'{metric_labels[metric]} (Val)')
-                
-                best_alpha = best_metrics[metric]['best_alpha_val']
-                best_score = best_metrics[metric]['best_val_score']
-                ax_val.axvline(x=best_alpha, color=color, linestyle='--', 
-                            label=f'Mejor α={best_alpha:.4f}\n{metric_labels[metric]}={best_score:.4f}')
-                
-                ax_val.set_xlabel('alpha (regularización)')
-                ax_val.set_ylabel(f'{metric_labels[metric]}')
-                ax_val.set_title(f'{metric_labels[metric]} en Validación')
-                ax_val.grid(True, alpha=0.3)
-                ax_val.legend()
-                axes_val.append(ax_val)
-            
-            figures['combined'] = {
-                'fig': fig_combined, 
-                'ax_coefs': ax_coefs, 
-                'axes_cv': axes_cv,
-                'axes_val': axes_val
-            }
-
-    # Combinaciones adicionales
+    
     if 'coefs+cv' in plot_types:
         # Cambio: layout horizontal para métricas CV
         fig_coefs_cv = plt.figure(figsize=figsize)
@@ -986,51 +723,7 @@ def plot_regularization_path( # hacer que devuelva el mejor modelo
         
         figures['coefs+val'] = {'fig': fig_coefs_val, 'ax_coefs': ax_coefs, 'axes_val': axes_val}
 
-    if 'cv+val' in plot_types:
-        # Cambio: Layout horizontal - una fila por métrica, con CV y Val lado a lado
-        fig_cv_val = plt.figure(figsize=figsize)
-        gs = fig_cv_val.add_gridspec(len(metrics), 2)
-        
-        axes = []
-        for i in range(len(metrics)):
-            # CV plot (columna izquierda)
-            ax_cv = fig_cv_val.add_subplot(gs[i, 0])
-            metric = metrics[i]
-            color = f'C{i}'
-            ax_cv.plot(alphas, cv_values[metric], '-o', color=color, linewidth=2, 
-                    label=f'{metric_labels[metric]} (CV)')
-            
-            best_alpha_cv = best_metrics[metric]['best_alpha_cv']
-            best_cv_score = best_metrics[metric]['best_cv_score']
-            ax_cv.axvline(x=best_alpha_cv, color=color, linestyle='--', 
-                        label=f'Mejor α={best_alpha_cv:.4f}\n{metric_labels[metric]}={best_cv_score:.4f}')
-            
-            ax_cv.set_xlabel('alpha (regularización)')
-            ax_cv.set_ylabel(f'{metric_labels[metric]}')
-            ax_cv.set_title(f'{metric_labels[metric]} por CV ({cv_folds}-fold)')
-            ax_cv.grid(True, alpha=0.3)
-            ax_cv.legend()
-            
-            # Val plot (columna derecha)
-            ax_val = fig_cv_val.add_subplot(gs[i, 1])
-            color = f'C{i+2}'
-            ax_val.plot(alphas, validation_metrics[metric], '-o', color=color, linewidth=2,
-                label=f'{metric_labels[metric]} (Val)')
-            
-            best_alpha_val = best_metrics[metric]['best_alpha_val']
-            best_val_score = best_metrics[metric]['best_val_score']
-            ax_val.axvline(x=best_alpha_val, color=color, linestyle='--', 
-                        label=f'Mejor α={best_alpha_val:.4f}\n{metric_labels[metric]}={best_val_score:.4f}')
-            
-            ax_val.set_xlabel('alpha (regularización)')
-            ax_val.set_ylabel(f'{metric_labels[metric]}')
-            ax_val.set_title(f'{metric_labels[metric]} en Validación')
-            ax_val.grid(True, alpha=0.3)
-            ax_val.legend()
-            
-            axes.append((ax_cv, ax_val))
-        
-        figures['cv+val'] = {'fig': fig_cv_val, 'axes': axes}
+
         
     # Aplicar tight_layout a todas las figuras
     for fig_dict in figures.values():

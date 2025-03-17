@@ -8,6 +8,7 @@
 
 - poner la media a rooms y age dependiendo el barrio/ zona (lat y lon)
 
+- punto 3.4 preguntar si esta bien dividir el modelo en 2
 
 - preguntar si puedo ponerle logs a los targets antes del punto 4
 - no entiendo lo de desnormalzizar
@@ -23,4 +24,6 @@
 - punto 4 a que cosa le hago exponencial
 
 - 5.3 puedo poner np.log al precio?
-- 5.4 como hago para obtener en base al grafico un lambda? me parece un punto innecesario is puedo obtener el minimo
+- 5.4 como hago para obtener en base al grafico un lambda? me parece un punto innecesario is puedo obtener el minimo 
+
+- dividir la super funcion de ploteo en varias
