@@ -21,5 +21,5 @@
 
 - 5.3 puedo poner np.log al precio?
 - 5.4 como hago para obtener en base al grafico un lambda? me parece un punto innecesario is puedo obtener el minimo 
-
+- que se hace en el 5? es super ambiguo
 - dividir la super funcion de ploteo en varias

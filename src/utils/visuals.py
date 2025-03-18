@@ -297,98 +297,181 @@ def compare_feature_impact(model_results_dict, property_dfs, feature_name='has_p
         
     return impacts
 
-
-def plot_weights_vs_lambda(lambdas, weights, feature_names):
+def plot_weights_vs_lambda(lambdas, weights, feature_names, custom_titles=None):
     """
-    Grafica los valores de los pesos en función de la regularización λ.
+    Grafica los valores de los pesos en función de la regularización λ usando seaborn.
     
     Parámetros:
     - lambdas: Lista o array de valores de λ.
     - weights: Matriz donde cada columna representa los pesos de una característica en función de λ.
     - feature_names: Lista de nombres de las características.
+    - custom_titles: Diccionario con títulos personalizados. Claves: 'title', 'xlabel', 'ylabel'
     """
-    plt.figure(figsize=(16, 6))
-    for i in range(min(weights.shape[1], len(feature_names))): 
-        label = feature_names[i] if i < len(feature_names) else f'w{i}'
-        plt.plot(lambdas, weights[:, i], label=label)
+    # Default titles
+    titles = {
+        "title": "Ridge Regression: Weight Values vs Regularization Strength",
+        "xlabel": "Regularization strength (λ)", 
+        "ylabel": "Weight Value"
+    }
+    
+    # Update with custom titles if provided
+    if custom_titles:
+        titles.update(custom_titles)
 
-    plt.xlabel('Regularization strength (λ)')
-    plt.ylabel('Weight Value')
-    plt.title('Ridge Regression: Weight Values vs Regularization Strength')
+    plt.figure(figsize=(16, 6))
+    sns.set_style("whitegrid")
+    
+    # Crear un DataFrame para usar con seaborn
+    data = pd.DataFrame(weights, columns=feature_names[:weights.shape[1]])
+    data['lambda'] = lambdas
+    
+    # Convertir a formato long para seaborn
+    data_long = pd.melt(data, id_vars=['lambda'], var_name='feature', value_name='weight')
+    
+    # Graficar usando seaborn
+    ax = sns.lineplot(x='lambda', y='weight', hue='feature', data=data_long)
+    
+    plt.xlabel(titles["xlabel"], fontsize=12)
+    plt.ylabel(titles["ylabel"], fontsize=12)
+    plt.title(titles["title"], fontsize=14)
     plt.grid(True, which="both", ls="-", alpha=0.2)
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    
+    # Mover la leyenda fuera del gráfico
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', title='Features')
+    
     plt.tight_layout()
     plt.show()
 
 def plot_mse_vs_lambda(ax, lambdas, mse_scores):
     """
     Grafica el Error Cuadrático Medio (MSE) en función de λ.
-
+    
     Parámetros:
-    - ax: Objeto de ejes de Matplotlib donde se dibujará el gráfico.
-    - lambdas: Lista o array de valores de λ.
-    - mse_scores: Lista o array de valores de MSE.
+        - ax: Objeto de ejes de Matplotlib donde se dibujará el gráfico.
+        - lambdas: Lista o array de valores de λ.
+        - mse_scores: Lista o array de valores de MSE.
+    
+    Retorna:
+        - min_lambda: Valor de λ que minimiza el MSE.
+        - min_mse: MSE mínimo obtenido.
     """
-    ax.plot(lambdas, mse_scores, color='blue')
+    # Graficar la línea del MSE
+    sns.lineplot(x=lambdas, y=mse_scores, ax=ax, color='blue', label='MSE')
+    
+    # Calcular el mínimo
     min_mse_idx = np.argmin(mse_scores)
     min_mse = mse_scores[min_mse_idx]
     min_lambda = lambdas[min_mse_idx]
     
-    ax.scatter([min_lambda], [min_mse], color='red', s=100, zorder=5)
-    ax.annotate(f'Min MSE: {min_mse:.4f}\nλ = {min_lambda:.4f}', 
-                xy=(min_lambda, min_mse), xytext=(min_lambda+1, min_mse), 
-                arrowprops=dict(facecolor='black', shrink=0.05, width=1.5))
+    # Marcar el mínimo con un punto y una línea vertical discontinua
+    ax.scatter([min_lambda], [min_mse], color='red', s=100, zorder=5,
+                label=f'Min MSE: {min_mse:.4f} (λ = {min_lambda:.4f})')
+    ax.axvline(x=min_lambda, color='red', linestyle='--', alpha=0.7)
+    
+    # Agregar texto con valores óptimos
+    ax.text(0.02, 0.98, f'λ óptimo: {min_lambda:.4f}\nMSE mínimo: {min_mse:.4f}',
+            transform=ax.transAxes, bbox=dict(facecolor='white', alpha=0.8),
+            verticalalignment='top')
     
     ax.set_xlabel('Regularization strength (λ)')
     ax.set_ylabel('Error cuadrático medio')
     ax.set_title('MSE vs λ')
     ax.grid(True)
-
+    
     return min_lambda, min_mse
 
 def plot_r2_vs_lambda(ax, lambdas, r2_scores):
     """
     Grafica el coeficiente de determinación R² en función de λ.
-
+    
     Parámetros:
-    - ax: Objeto de ejes de Matplotlib donde se dibujará el gráfico.
-    - lambdas: Lista o array de valores de λ.
-    - r2_scores: Lista o array de valores de R².
+        - ax: Objeto de ejes de Matplotlib donde se dibujará el gráfico.
+        - lambdas: Lista o array de valores de λ.
+        - r2_scores: Lista o array de valores de R².
+    
+    Retorna:
+        - max_lambda: Valor de λ que maximiza R².
+        - max_r2: Valor máximo de R² obtenido.
     """
-    ax.plot(lambdas, r2_scores, color='green')
+    sns.lineplot(x=lambdas, y=r2_scores, ax=ax, color='green', label='R²')
+    
+    # Calcular el máximo
     max_r2_idx = np.argmax(r2_scores)
     max_r2 = r2_scores[max_r2_idx]
     max_lambda = lambdas[max_r2_idx]
     
-    ax.scatter([max_lambda], [max_r2], color='red', s=100, zorder=5)
-    ax.annotate(f'Max R²: {max_r2:.4f}\nλ = {max_lambda:.4f}', 
-                xy=(max_lambda, max_r2), xytext=(max_lambda+1, max_r2), 
-                arrowprops=dict(facecolor='black', shrink=0.05, width=1.5))
+    # Marcar el máximo con un punto y una línea vertical discontinua
+    ax.scatter([max_lambda], [max_r2], color='red', s=100, zorder=5,
+                label=f'Max R²: {max_r2:.4f} (λ = {max_lambda:.4f})')
+    ax.axvline(x=max_lambda, color='red', linestyle='--', alpha=0.7)
+    
+    # Agregar texto con valores óptimos
+    ax.text(0.02, 0.98, f'λ óptimo: {max_lambda:.4f}\nR² máximo: {max_r2:.4f}',
+            transform=ax.transAxes, bbox=dict(facecolor='white', alpha=0.8),
+            verticalalignment='top')
     
     ax.set_xlabel('Regularization strength (λ)')
     ax.set_ylabel('Coeficiente de determinación (R²)')
     ax.set_title('R² vs λ')
     ax.grid(True)
-
+    
     return max_lambda, max_r2
 
 def plot_performance_metrics(lambdas, mse_scores, r2_scores):
     """
     Crea subgráficos con las métricas MSE y R² en función de λ.
-
+    
     Parámetros:
-    - lambdas: Lista o array de valores de λ.
-    - mse_scores: Lista o array de valores de MSE.
-    - r2_scores: Lista o array de valores de R².
+      - lambdas: Lista o array de valores de λ.
+      - mse_scores: Lista o array de valores de MSE.
+      - r2_scores: Lista o array de valores de R².
     """
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
     
     min_lambda, min_mse = plot_mse_vs_lambda(ax1, lambdas, mse_scores)
     max_lambda, max_r2 = plot_r2_vs_lambda(ax2, lambdas, r2_scores)
-
-
+    
     plt.tight_layout()
     plt.suptitle('Métricas de rendimiento vs Regularization Strength', y=1.05, fontsize=16)
     plt.show()
-
+    
     return min_lambda, min_mse, max_lambda, max_r2
+
+def plot_cv_results(lambdas, cv_mse_scores, optimal_lambda, min_cv_mse, title=None, ax=None):
+    """
+    Grafica la variación del ECM promedio (de validación cruzada) en función de λ utilizando seaborn.
+    
+    Parámetros:
+      - lambdas: Secuencia de valores de λ.
+      - cv_mse_scores: ECM promedio correspondiente a cada λ.
+      - optimal_lambda: Valor de λ que minimiza el ECM.
+      - min_cv_mse: ECM mínimo obtenido.
+      - title (str, opcional): Título del gráfico.
+      - ax (matplotlib.axes.Axes, opcional): Eje sobre el cual dibujar.
+    
+    Retorna:
+      - ax: Objeto matplotlib.axes.Axes con el gráfico.
+    """
+    if ax is None:
+        plt.figure(figsize=(12, 7))
+        ax = plt.gca()
+    sns.set_style("whitegrid")
+    
+    # Crear DataFrame para graficar usando seaborn
+    data = pd.DataFrame({'lambda': lambdas, 'ECM': cv_mse_scores})
+    sns.lineplot(data=data, x='lambda', y='ECM', ax=ax, label='ECM promedio')
+    
+    # Marcar el lambda óptimo con un punto y una línea vertical discontinua incluida en la leyenda
+    ax.scatter([optimal_lambda], [min_cv_mse], color='red', s=100, zorder=5,
+               label=f'Min ECM: {min_cv_mse:.4f} (λ = {optimal_lambda:.4f})')
+    ax.axvline(x=optimal_lambda, color='red', linestyle='--', alpha=0.7)
+    
+    ax.set_xlabel('Intensidad de regularización (λ)', fontsize=12)
+    ax.set_ylabel('Error Cuadrático Medio (ECM) - Validación Cruzada', fontsize=12)
+    if title is None:
+        title = 'Validación Cruzada: ECM vs λ'
+    ax.set_title(title, fontsize=14)
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    
+    return ax

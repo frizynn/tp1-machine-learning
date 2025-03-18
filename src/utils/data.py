@@ -1,8 +1,8 @@
 import pandas as pd
 import numpy as np
-
 from models.clustering.kmeans import KMeans
 from typing import Dict, List, Union, Callable, Tuple
+from models.regression.base import Model
 
 
 def round_input(X, columnas):
@@ -306,3 +306,71 @@ def process_dataset(
         'zone_stats': zone_stats if location_columns else None,
         'feature_stats': feature_stats
     }
+
+
+def cross_validate_lambda(X, y, lambdas, model_class: Model, n_splits=5, 
+                          method='pseudo_inverse', regularization='l2', 
+                          normalize=True, random_state=None):
+    """
+    Realiza validación cruzada para distintos valores de lambda y retorna el ECM promedio 
+    por cada lambda, junto con el lambda óptimo y el ECM mínimo.
+    
+    Parámetros:
+        X (pd.DataFrame): Variables predictoras.
+        y (pd.Series): Variable objetivo.
+        lambdas (iterable): Secuencia de valores de lambda a evaluar.
+        model_class (Model): Clase del modelo de regresión a utilizar.
+        n_splits (int): Número de particiones para validación cruzada.
+        method (str): Método de ajuste del modelo.
+        regularization (str): Tipo de regularización.
+        normalize (bool): Si True, normaliza las variables.
+        random_state (int, opcional): Semilla para reproducibilidad.
+    
+    Retorna:
+        tuple: (lambda óptimo, ECM mínimo, array de ECM promedio para cada lambda)
+    """
+    
+    def numpy_kfold(n_samples, n_splits, random_state=None):
+        if random_state is not None:
+            np.random.seed(random_state)
+        indices = np.arange(n_samples)
+        np.random.shuffle(indices)
+        fold_size = n_samples // n_splits
+        for i in range(n_splits):
+            start = i * fold_size
+            end = (i + 1) * fold_size if i < n_splits - 1 else n_samples
+            val_indices = indices[start:end]
+            train_indices = np.concatenate([indices[:start], indices[end:]])
+            yield train_indices, val_indices
+
+    n_samples = len(X)
+    folds = list(numpy_kfold(n_samples, n_splits, random_state))
+    cv_mse_scores = []
+    
+    for lambda_val in lambdas:
+        fold_mse_scores = []
+        for train_idx, val_idx in folds:
+            X_train = X.iloc[train_idx].copy()
+            X_val = X.iloc[val_idx].copy()
+            y_train = y.iloc[train_idx].copy()
+            y_val = y.iloc[val_idx].copy()
+            
+            if normalize:
+                mean = X_train.mean()
+                std = X_train.std().replace(0, 1e-8)
+                X_train = (X_train - mean) / std
+                X_val = (X_val - mean) / std
+            
+            model = model_class()
+            model.fit(X_train, y_train, method=method, alpha=lambda_val, regularization=regularization)
+            mse = model.mse_score(X_val, y_val)
+            fold_mse_scores.append(mse)
+            
+        cv_mse_scores.append(np.mean(fold_mse_scores))
+    
+    cv_mse_scores = np.array(cv_mse_scores)
+    optimal_idx = np.argmin(cv_mse_scores)
+    optimal_lambda = lambdas[optimal_idx]
+    min_cv_mse = cv_mse_scores[optimal_idx]
+    
+    return optimal_lambda, min_cv_mse, cv_mse_scores
