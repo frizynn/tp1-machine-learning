@@ -191,7 +191,7 @@ def normalize_data(X_train: pd.DataFrame, X_test: pd.DataFrame) -> tuple:
     return X_train_normalized, X_test_normalized, params
 
 
-def print_model_evaluation(model, feature_columns, metrics_results):
+def print_model_evaluation(model, feature_columns, metrics_results,transorm_target=None):
     """
     Print model evaluation results.
     
@@ -204,7 +204,7 @@ def print_model_evaluation(model, feature_columns, metrics_results):
     metrics_results : dict
         Dictionary with metric values
     """
-    print(f"\n=== Model Evaluation ({model.__class__.__name__}) ===")
+    print(f"\n=== Model Evaluation ({model.__class__.__name__}) - Metrics   Space: {transorm_target.__name__ if transorm_target else 'original' }===")
     
     for metric, value in metrics_results.items():
         print(f"{metric.upper()}: {value:.6f}")

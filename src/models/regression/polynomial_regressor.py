@@ -6,7 +6,7 @@ import numpy as np
 from ..loss.base import LossFunction
 
 
-class PolinomialRegressor(Model):
+class PolynomialRegressor(Model):
     @classmethod
     def change_degree(cls, degree):
         cls.default_degree = degree
@@ -36,7 +36,7 @@ class PolinomialRegressor(Model):
         l1_ratio: float = 0.5,
         exclude_intercept: bool = True,
         report_metrics: bool = False
-    ) -> "PolinomialRegressor":
+    ) -> "PolynomialRegressor":
         """
         Entrena el modelo usando el método especificado
 

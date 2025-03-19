@@ -44,8 +44,7 @@ def evaluate_model(model, X_test, y_test, metrics=None):
         
     metric_functions = {
         'mse': model.mse_score,
-        'r2': model.r2_score,
-        'mae': lambda x, y: np.mean(np.abs(y - model.predict(x)))
+        'r2': model.r2_score
     }
     
     results = {}
@@ -144,7 +143,7 @@ def train_and_evaluate_model(
     
     # Print results if requested
     if verbose:
-        print_model_evaluation(model, feature_columns, metrics_results)
+        print_model_evaluation(model, feature_columns, metrics_results,transform_target)
     
     # Prepare results
     results = {
