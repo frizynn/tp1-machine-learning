@@ -100,6 +100,7 @@ def split_test_train_with_label(
     test_size: float = 0.2,
     random_state: int = 42,
     drop_target: bool = True,
+    transform_target: Callable = None,
     normalize: bool = False
 ) -> tuple:
     """
@@ -119,6 +120,7 @@ def split_test_train_with_label(
         Si debe eliminar la columna target de X
     normalize : bool
         Si debe normalizar los datos usando la media y std de X_train
+    transform_target : Callable
         
     Returns
     -------
@@ -140,6 +142,9 @@ def split_test_train_with_label(
     idx = np.random.permutation(n)
     X = X.iloc[idx]
     y = y.iloc[idx]
+
+    if transform_target:
+        y = transform_target(y)
     
     X_train = X.iloc[:n_train]
     X_test = X.iloc[n_train:]
@@ -448,7 +453,7 @@ def cross_validate_lambda(X, y, lambdas, model_class: Model, n_splits=5,
 
     # Convertir las listas en arrays de NumPy
     cv_metrics_scores = {key: np.array(scores) for key, scores in cv_metrics_scores.items()}
-    optimal_idx = {key: np.argmin(scores) for key, scores in cv_metrics_scores.items()}
+    optimal_idx = {key: np.argmin(scores) if key == 'mse' else np.argmax(scores) for key, scores in cv_metrics_scores.items()}
     optimal_lambda = {key: lambdas[optimal_idx[key]] for key in cv_metrics_scores}
     min_cv_metrics = {key: cv_metrics_scores[key][optimal_idx[key]] for key in cv_metrics_scores}
     
