@@ -211,7 +211,7 @@ def load_and_prepare_data(
     y = df[target_column]
     
     return X, y, feature_columns
-
+# hola
 
 def _calculate_normalization_params(data: pd.DataFrame) -> Dict:
     """Calculate normalization parameters from data."""
