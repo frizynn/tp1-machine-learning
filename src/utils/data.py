@@ -5,6 +5,43 @@ from typing import Dict, List, Union, Callable, Tuple
 from models.regression.base import Model
 
 
+
+def mse_score(X: pd.DataFrame, y, round=False, model=None):
+    """
+    Calcula el error cuadrático medio (MSE) entre la predicción y el target.
+    Si y es un DataFrame (para predicción multivariante), se calcula el MSE promedio
+    de todas las columnas.
+    """
+    if model is None:
+        raise ValueError("Model is required")
+    
+    y_pred = model.predict(X)
+    if round:
+        y_pred = np.round(y_pred)
+    if isinstance(y, pd.DataFrame):
+        y_pred = pd.DataFrame(y_pred, index=y.index, columns=y.columns)
+        mse = ((y - y_pred) ** 2).mean().mean()
+    else:
+        mse = ((y - y_pred) ** 2).mean()
+    return mse
+
+
+def r2_score(X: pd.DataFrame, y, model=None):
+    """
+    Calcula el coeficiente de determinación R^2 de la predicción.
+    """
+    if model is None:
+        raise ValueError("Model is required")
+    
+    y_pred = model.predict(X)
+    y_mean = y.mean()
+    ss_total = ((y - y_mean) ** 2).sum()
+    ss_res = ((y - y_pred) ** 2).sum()
+    r2 = 1 - ss_res / ss_total
+    return r2
+
+
+
 def round_input(X, columnas):
     """
     Redondea a enteros las columnas especificadas de un DataFrame.
@@ -204,10 +241,10 @@ def print_model_evaluation(model, feature_columns, metrics_results,transorm_targ
     metrics_results : dict
         Dictionary with metric values
     """
-    print(f"\n=== Model Evaluation ({model.__class__.__name__}) - Metrics   Space: {transorm_target.__name__ if transorm_target else 'original' }===")
+    print(f"\n=== Model Evaluation ({model.__class__.__name__}) - MSE Space: {transorm_target.__name__ if transorm_target else 'original' } ===")
     
     for metric, value in metrics_results.items():
-        print(f"{metric.upper()}: {value:.6f}")
+        print(f"{metric}: {value:.6f}")
     
     try:
         model.print_coefficients()
@@ -244,12 +281,17 @@ def process_dataset(
     feature_engineering_ops: List[Dict[str, Union[str, Callable]]] = None,
     features_to_impute: List[str] = ['age', 'rooms'],
     location_columns: List[str] = ['lat', 'lon'],
+    impute_by_zone: bool = False,
     save_path: str = None
 ) -> Dict:
     """
     Process dataset with clustering and feature engineering.
+    
+    Args:
+        ...
+        impute_by_zone: If True, impute using zone means. If False, use global means
+        ...
     """
-
     df = df.copy()
     
     if location_columns:
@@ -257,7 +299,6 @@ def process_dataset(
         kmeans_model.fit(location_data)
         df['location_zone'] = kmeans_model.predict(location_data)
     
-
     if feature_engineering_ops is None:
         feature_engineering_ops = [
             {'name': 'area_per_room', 'operation': lambda df: df['area'] / df['rooms']},
@@ -265,12 +306,11 @@ def process_dataset(
             {'name': 'house_area', 'operation': lambda df: df['area'] * df['is_house']}
         ]
     
-
     new_features_df, feature_stats = _handle_feature_engineering(df, feature_engineering_ops)
     df = pd.concat([df, new_features_df], axis=1)
     
+    zone_stats = {}
     if location_columns:
-        zone_stats = {}
         for zone in range(kmeans_model.n_clusters):
             df_zone = df[df['location_zone'] == zone] 
             
@@ -289,13 +329,21 @@ def process_dataset(
             
             zone_stats[f'zone_{zone}'] = stats
             
-            for feature in features_to_impute:
-                df.loc[df['location_zone'] == zone, feature] = df.loc[
-                    df['location_zone'] == zone, feature
-                ].fillna(stats[feature]['mean'])
-        
+            # Imputación según impute_by_zone
+            if impute_by_zone:
+                for feature in features_to_impute:
+                    df.loc[df['location_zone'] == zone, feature] = df.loc[
+                        df['location_zone'] == zone, feature
+                    ].fillna(stats[feature]['mean'])
+            
         df_pos = df[location_columns + ['location_zone']] if location_columns else None
         df = df.drop(location_columns, axis=1) if location_columns else df
+    
+    # Imputación global si impute_by_zone es False
+    if not impute_by_zone and features_to_impute:
+        for feature in features_to_impute:
+            global_mean = df[feature].mean()
+            df[feature] = df[feature].fillna(global_mean)
 
     if save_path is not None:
         df.to_csv(save_path, index=False)
@@ -307,10 +355,12 @@ def process_dataset(
         'feature_stats': feature_stats
     }
 
-
 def cross_validate_lambda(X, y, lambdas, model_class: Model, n_splits=5, 
                           method='pseudo_inverse', regularization='l2', 
-                          normalize=True, random_state=None):
+                          normalize=True, random_state=None,
+                          variable: str = 'penalty',
+                          transform_target=None,
+                          metrics=None):
     """
     Realiza validación cruzada para distintos valores de lambda y retorna el ECM promedio 
     por cada lambda, junto con el lambda óptimo y el ECM mínimo.
@@ -325,10 +375,17 @@ def cross_validate_lambda(X, y, lambdas, model_class: Model, n_splits=5,
         regularization (str): Tipo de regularización.
         normalize (bool): Si True, normaliza las variables.
         random_state (int, opcional): Semilla para reproducibilidad.
-    
+        variable (str): Variable a optimizar. Puede ser 'penalty' o 'degree'.
+        transform_target (callable, opcional): Función para transformar la variable objetivo.
+        metrics (list, opcional): Lista de funciones de métricas a evaluar.
+        
     Retorna:
-        tuple: (lambda óptimo, ECM mínimo, array de ECM promedio para cada lambda)
+        tuple: (diccionario con lambda óptimo para cada métrica, 
+                diccionario con el ECM mínimo para cada métrica, 
+                diccionario con los ECM promedio para cada lambda para cada métrica)
     """
+    if metrics is None:
+        metrics = [mse_score, r2_score]
     
     def numpy_kfold(n_samples, n_splits, random_state=None):
         if random_state is not None:
@@ -345,32 +402,54 @@ def cross_validate_lambda(X, y, lambdas, model_class: Model, n_splits=5,
 
     n_samples = len(X)
     folds = list(numpy_kfold(n_samples, n_splits, random_state))
-    cv_mse_scores = []
+
+    # Inicializar diccionario usando el nombre de cada métrica como clave
+    cv_metrics_scores = {metric.__name__.lower(): [] for metric in metrics}
     
+    # Para cada valor de lambda (o grado)
     for lambda_val in lambdas:
-        fold_mse_scores = []
+        # Inicializamos los puntajes para cada fold para cada métrica
+        fold_metrics_scores = {metric.__name__.lower(): [] for metric in metrics}
         for train_idx, val_idx in folds:
             X_train = X.iloc[train_idx].copy()
             X_val = X.iloc[val_idx].copy()
             y_train = y.iloc[train_idx].copy()
             y_val = y.iloc[val_idx].copy()
-            
+
+            if transform_target:
+                y_train = transform_target(y_train)
+                y_val = transform_target(y_val)
+
             if normalize:
                 mean = X_train.mean()
                 std = X_train.std().replace(0, 1e-8)
                 X_train = (X_train - mean) / std
                 X_val = (X_val - mean) / std
             
-            model = model_class()
-            model.fit(X_train, y_train, method=method, alpha=lambda_val, regularization=regularization)
-            mse = model.mse_score(X_val, y_val)
-            fold_mse_scores.append(mse)
-            
-        cv_mse_scores.append(np.mean(fold_mse_scores))
+            model = model_class() 
+            if variable == 'degree':
+                model.change_degree(lambda_val)
+                model.fit(X_train, y_train, regularization=regularization)
+            elif variable == 'penalty':
+                model.fit(X_train, y_train, method=method, alpha=lambda_val, regularization=regularization)
+            else:
+                model.fit(X_train, y_train, regularization=regularization)
+
+            for metric in metrics:
+                # Llamar a la función métrica pasando el modelo con el parámetro keyword
+                score = metric(X_val, y_val, model=model)
+                fold_metrics_scores[metric.__name__.lower()].append(score)
+        
+        # Promediar las métricas de cada fold para el valor actual de lambda
+        for metric in metrics:
+            key = metric.__name__.lower()
+            mean_score = np.mean(fold_metrics_scores[key])
+            cv_metrics_scores[key].append(mean_score)
+
+    # Convertir las listas en arrays de NumPy
+    cv_metrics_scores = {key: np.array(scores) for key, scores in cv_metrics_scores.items()}
+    optimal_idx = {key: np.argmin(scores) for key, scores in cv_metrics_scores.items()}
+    optimal_lambda = {key: lambdas[optimal_idx[key]] for key in cv_metrics_scores}
+    min_cv_metrics = {key: cv_metrics_scores[key][optimal_idx[key]] for key in cv_metrics_scores}
     
-    cv_mse_scores = np.array(cv_mse_scores)
-    optimal_idx = np.argmin(cv_mse_scores)
-    optimal_lambda = lambdas[optimal_idx]
-    min_cv_mse = cv_mse_scores[optimal_idx]
-    
-    return optimal_lambda, min_cv_mse, cv_mse_scores
+    return optimal_lambda, min_cv_metrics, cv_metrics_scores

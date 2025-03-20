@@ -263,3 +263,4 @@ class LossFunction(ABC):
             raise ValueError(f"Tipo de regularización no reconocido: {reg_type}")
             
         return gradient + reg_gradient
+    

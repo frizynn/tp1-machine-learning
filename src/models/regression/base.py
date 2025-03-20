@@ -19,6 +19,10 @@ class Model:
         self.intercept_ = None
         self.feature_names = None
         self._training_info = {}
+        self.metrics = {
+            'mse': self.mse_score,
+            'r2': self.r2_score
+                            }
         
 
     def fit(self, X: pd.DataFrame, y: pd.Series):
@@ -27,32 +31,7 @@ class Model:
     def predict(self, X: pd.DataFrame):
         raise NotImplementedError
 
-    def mse_score(self, X: pd.DataFrame, y, round=False):
-        """
-        Calcula el error cuadrático medio (MSE) entre la predicción y el target.
-        Si y es un DataFrame (para predicción multivariante), se calcula el MSE promedio
-        de todas las columnas.
-        """
-        y_pred = self.predict(X)
-        if round:
-            y_pred = np.round(y_pred)
-        if isinstance(y, pd.DataFrame):
-            y_pred = pd.DataFrame(y_pred, index=y.index, columns=y.columns)
-            mse = ((y - y_pred) ** 2).mean().mean()
-        else:
-            mse = ((y - y_pred) ** 2).mean()
-        return mse
-    
-    def r2_score(self, X: pd.DataFrame, y):
-        """
-        Calcula el coeficiente de determinación R^2 de la predicción.
-        """
-        y_pred = self.predict(X)
-        y_mean = y.mean()
-        ss_total = ((y - y_mean) ** 2).sum()
-        ss_res = ((y - y_pred) ** 2).sum()
-        r2 = 1 - ss_res / ss_total
-        return r2
+   
 
     @staticmethod
     def _build_design_matrix(X: pd.DataFrame, degree: int = 1) -> pd.DataFrame:

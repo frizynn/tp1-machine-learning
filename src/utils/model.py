@@ -11,6 +11,8 @@ from .data import (
     load_and_prepare_data,
     normalize_data,
     print_model_evaluation,
+    mse_score,
+    r2_score
 
 )
 from models.regression.base import (
@@ -32,7 +34,7 @@ def evaluate_model(model, X_test, y_test, metrics=None):
     y_test : pd.Series
         Test target values
     metrics : list, default=None
-        List of metric names to calculate
+        List of metric functions to calculate
         
     Returns:
     --------
@@ -40,17 +42,12 @@ def evaluate_model(model, X_test, y_test, metrics=None):
         Dictionary of metric values
     """
     if metrics is None:
-        metrics = ['mse', 'r2']
+        metrics = [mse_score, r2_score]
         
-    metric_functions = {
-        'mse': model.mse_score,
-        'r2': model.r2_score
-    }
-    
+
     results = {}
     for metric in metrics:
-        if metric in metric_functions:
-            results[metric] = metric_functions[metric](X_test, y_test)
+        results[metric.__name__.lower()] = metric(X_test, y_test,model=model)
             
     return results
 
@@ -65,7 +62,6 @@ def train_and_evaluate_model(
     model_class=None,
     normalize_features=True,
     transform_target=None,
-    transform_pred=None,
     fit_params=None,
     metrics=None,
     verbose=True
@@ -112,7 +108,7 @@ def train_and_evaluate_model(
         fit_params = {'method': 'gradient_descent', 'learning_rate': 0.01, 'epochs': 1000}
     
     if metrics is None:
-        metrics = ['mse', 'r2']
+        metrics = [mse_score, r2_score]
         
     if model_class is None:
        raise Exception("Es necesario especificar el modelo")
@@ -141,7 +137,7 @@ def train_and_evaluate_model(
     # Evaluate model
     metrics_results = evaluate_model(model, X_test, y_test, metrics)
     
-    # Print results if requested
+
     if verbose:
         print_model_evaluation(model, feature_columns, metrics_results,transform_target)
     
@@ -180,10 +176,10 @@ def get_weights_and_metrics(X, y, lambdas, model_class, test_size=0.2, random_st
         coefs = model.get_weights()
         weights.append(coefs)
 
-        mse_score = model.mse_score(X_test, y_test)
-        r2_score = model.r2_score(X_test, y_test)
-        mse_scores.append(mse_score)
-        r2_scores.append(r2_score)
+        mse = mse_score(X_test, y_test, model=model)
+        r2 = r2_score(X_test, y_test, model=model)
+        mse_scores.append(mse)
+        r2_scores.append(r2)
 
     weights = np.array(weights)
     return weights, mse_scores, r2_scores
