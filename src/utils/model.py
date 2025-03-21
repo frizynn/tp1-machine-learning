@@ -21,7 +21,7 @@ from models.regression.base import (
 
 
 
-def evaluate_model(model, X_test, y_test, metrics=None):
+def evaluate_model(model, X_test, y_test, metrics=None, inv_transform_pred=None):
     """
     Evaluate model performance using specified metrics.
     
@@ -44,10 +44,17 @@ def evaluate_model(model, X_test, y_test, metrics=None):
     if metrics is None:
         metrics = [mse_score, r2_score]
         
+    if inv_transform_pred is not None:
+        y_test = inv_transform_pred(y_test)
+    
+    y_pred_test = model.predict(X_test)
+
+    if inv_transform_pred is not None:
+        y_pred_test = inv_transform_pred(y_pred_test)
 
     results = {}
     for metric in metrics:
-        results[metric.__name__.lower()] = metric(X_test, y_test,model=model)
+        results[metric.__name__.lower()] = metric(y_pred_test, y_test)
             
     return results
 
@@ -62,6 +69,7 @@ def train_and_evaluate_model(
     model_class=None,
     normalize_features=True,
     transform_target=None,
+    inv_transform_pred=None,
     fit_params=None,
     metrics=None,
     verbose=True
@@ -135,8 +143,7 @@ def train_and_evaluate_model(
     y_pred_test = model.predict(X_test)
     
     # Evaluate model
-    metrics_results = evaluate_model(model, X_test, y_test, metrics)
-    
+    metrics_results = evaluate_model(model, X_test, y_test, metrics, inv_transform_pred)
 
     if verbose:
         print_model_evaluation(model, feature_columns, metrics_results,transform_target)
@@ -160,7 +167,7 @@ def train_and_evaluate_model(
 
 
 def get_weights_and_metrics(X, y, lambdas, model_class, test_size=0.2, random_state=42, normalize=True, regularization='l2',
-                            method='pseudo_inverse'):
+                            method='pseudo_inverse', inv_transform_pred=None):
 
     X_train, X_test, y_train, y_test = split_test_train_with_label(X, y, test_size=test_size, random_state=random_state, normalize=normalize)
 
@@ -172,12 +179,19 @@ def get_weights_and_metrics(X, y, lambdas, model_class, test_size=0.2, random_st
         model = model_class()
         model.fit(X_train, y_train, method=method, alpha=lambda_, regularization=regularization)
 
-
         coefs = model.get_weights()
         weights.append(coefs)
 
-        mse = mse_score(X_test, y_test, model=model)
-        r2 = r2_score(X_test, y_test, model=model)
+        # Obtener predicciones del modelo
+        y_pred = model.predict(X_test)
+        
+        if inv_transform_pred is not None:
+            y_pred = inv_transform_pred(y_pred)
+            y_test = inv_transform_pred(y_test)
+
+        # Calcular métricas pasando primero y_pred, luego y_test
+        mse = mse_score(y_pred, y_test)
+        r2 = r2_score(y_pred, y_test)
         mse_scores.append(mse)
         r2_scores.append(r2)
 

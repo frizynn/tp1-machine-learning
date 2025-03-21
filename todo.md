@@ -19,3 +19,5 @@
 - verificar titulos de graficos y nombres
 
 - hacer cv para todos los modelos
+
+- comentar el codigo, verificar que las funciones tengan sentido

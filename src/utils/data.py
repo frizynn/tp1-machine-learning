@@ -6,37 +6,29 @@ from models.regression.base import Model
 
 
 
-def mse_score(X: pd.DataFrame, y, round=False, model=None):
+def mse_score(y_pred, y_test, round=False):
     """
     Calcula el error cuadrático medio (MSE) entre la predicción y el target.
     Si y es un DataFrame (para predicción multivariante), se calcula el MSE promedio
     de todas las columnas.
     """
-    if model is None:
-        raise ValueError("Model is required")
-    
-    y_pred = model.predict(X)
     if round:
         y_pred = np.round(y_pred)
-    if isinstance(y, pd.DataFrame):
-        y_pred = pd.DataFrame(y_pred, index=y.index, columns=y.columns)
-        mse = ((y - y_pred) ** 2).mean().mean()
+    if isinstance(y_test, pd.DataFrame):
+        y_pred = pd.DataFrame(y_pred, index=y_test.index, columns=y_test.columns)
+        mse = ((y_test - y_pred) ** 2).mean().mean()
     else:
-        mse = ((y - y_pred) ** 2).mean()
+        mse = ((y_test - y_pred) ** 2).mean()
     return mse
 
 
-def r2_score(X: pd.DataFrame, y, model=None):
+def r2_score(y_pred, y_test):
     """
     Calcula el coeficiente de determinación R^2 de la predicción.
     """
-    if model is None:
-        raise ValueError("Model is required")
-    
-    y_pred = model.predict(X)
-    y_mean = y.mean()
-    ss_total = ((y - y_mean) ** 2).sum()
-    ss_res = ((y - y_pred) ** 2).sum()
+    y_mean = y_test.mean()
+    ss_total = ((y_test - y_mean) ** 2).sum()
+    ss_res = ((y_test - y_pred) ** 2).sum()
     r2 = 1 - ss_res / ss_total
     return r2
 
@@ -212,13 +204,30 @@ def load_and_prepare_data(
     
     return X, y, feature_columns
 # hola
-
 def _calculate_normalization_params(data: pd.DataFrame) -> Dict:
     """Calculate normalization parameters from data."""
-    return {
-        'mean': data.mean(),
-        'std': data.std().replace(0, 1)  # Avoid division by zero
+    # Identificar columnas binarias (solo contienen 0 y 1)
+    binary_cols = data.apply(lambda x: set(x.unique()) <= {0, 1})
+    
+    # Obtener solo columnas no binarias
+    non_binary_data = data.loc[:, ~binary_cols]
+    
+    # Crear Series de tipo float64 para evitar problemas de compatibilidad
+    params = {
+        'mean': pd.Series(0.0, index=data.columns, dtype=float),
+        'std': pd.Series(1.0, index=data.columns, dtype=float)
     }
+    
+    # Actualizar parámetros solo para columnas no binarias
+    if not non_binary_data.empty:
+        means = non_binary_data.mean()
+        stds = non_binary_data.std().replace(0, 1.0)  # Evitar división por cero
+        
+        for col in non_binary_data.columns:
+            params['mean'][col] = means[col]
+            params['std'][col] = stds[col]
+    
+    return params
 
 def _apply_normalization(data: pd.DataFrame, params: Dict) -> pd.DataFrame:
     """Apply normalization using given parameters."""
@@ -246,7 +255,7 @@ def print_model_evaluation(model, feature_columns, metrics_results,transorm_targ
     metrics_results : dict
         Dictionary with metric values
     """
-    print(f"\n=== Model Evaluation ({model.__class__.__name__}) - MSE Space: {transorm_target.__name__ if transorm_target else 'original' } ===")
+    print(f"\n=== Model Evaluation ({model.__class__.__name__}) ===")
     
     for metric, value in metrics_results.items():
         print(f"{metric}: {value:.6f}")
@@ -365,7 +374,8 @@ def cross_validate_lambda(X, y, lambdas, model_class: Model, n_splits=5,
                           normalize=True, random_state=None,
                           variable: str = 'penalty',
                           transform_target=None,
-                          metrics=None):
+                          metrics=None,
+                          inv_transform_pred=None):
     """
     Realiza validación cruzada para distintos valores de lambda y retorna el ECM promedio 
     por cada lambda, junto con el lambda óptimo y el ECM mínimo.
@@ -383,7 +393,7 @@ def cross_validate_lambda(X, y, lambdas, model_class: Model, n_splits=5,
         variable (str): Variable a optimizar. Puede ser 'penalty' o 'degree'.
         transform_target (callable, opcional): Función para transformar la variable objetivo.
         metrics (list, opcional): Lista de funciones de métricas a evaluar.
-        
+        inv_transform_pred (callable, opcional): Función para invertir la transformación de la variable objetivo.
     Retorna:
         tuple: (diccionario con lambda óptimo para cada métrica, 
                 diccionario con el ECM mínimo para cada métrica, 
@@ -440,9 +450,15 @@ def cross_validate_lambda(X, y, lambdas, model_class: Model, n_splits=5,
             else:
                 model.fit(X_train, y_train, regularization=regularization)
 
+            if inv_transform_pred is not None:
+                y_pred = inv_transform_pred(y_pred)
+                y_val = inv_transform_pred(y_val)
+            
+            y_pred = model.predict(X_val)
+
             for metric in metrics:
                 # Llamar a la función métrica pasando el modelo con el parámetro keyword
-                score = metric(X_val, y_val, model=model)
+                score = metric(y_pred, y_val)
                 fold_metrics_scores[metric.__name__.lower()].append(score)
         
         # Promediar las métricas de cada fold para el valor actual de lambda
