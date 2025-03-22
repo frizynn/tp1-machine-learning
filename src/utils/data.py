@@ -418,6 +418,89 @@ def process_dataset(
         'feature_stats': feature_stats
     }
 
+def compare_feature_impact(model_results_dict, property_dfs, feature_name='has_pool' 
+                       
+                         ):
+    """
+    Compare the impact of a specific feature across different models.
+    
+    Parameters
+    ----------
+    model_results_dict : dict
+        Dictionary mapping model names to model results (from train_and_evaluate_model),
+        or a single model result dictionary (will be treated as a single model)
+    property_dfs : dict
+        Dictionary mapping model names to corresponding DataFrames,
+        or a single DataFrame (will be treated as a single model)
+    feature_name : str, default='has_pool'
+        Name of the feature to analyze impact
+    plot : bool, default=False
+        Whether to generate and display visualization (default changed to False)
+    y_lim : tuple or None, default=None
+        Custom y-axis limits for absolute impact (min, max)
+    x_lim : tuple or None, default=None
+        Custom x-axis limits for property price range (min, max)
+    currency : str, default='$'
+        Currency symbol to use in labels and titles
+    custom_title : str or None, default=None
+        Custom plot title, if None a default is generated
+    style : str, default='whitegrid'
+        Seaborn plotting style to use
+    fixed_x_ticks : array-like or None, default=None
+        Custom tick positions for x-axis
+    fixed_y1_ticks : array-like or None, default=None
+        Custom tick positions for primary y-axis (absolute impact)
+    fixed_y2_ticks : array-like or None, default=None
+        Custom tick positions for secondary y-axis (percentage impact)
+    
+    Returns
+    -------
+    dict
+        Dictionary containing analysis results for each model
+    """
+
+    if not isinstance(model_results_dict, dict) or (isinstance(model_results_dict, dict) and 'model' in model_results_dict):
+        model_results_dict = {"Modelo": model_results_dict}
+        property_dfs = {"Modelo": property_dfs}
+    
+    if not isinstance(property_dfs, dict):
+        raise ValueError("property_dfs must be a dictionary")
+    
+    if set(model_results_dict.keys()) != set(property_dfs.keys()):
+        raise ValueError("model_results_dict and property_dfs must have the same keys")
+    
+
+    impacts = {}
+    for model_name, model_results in model_results_dict.items():
+        coef_dict = None
+        if hasattr(model_results["model"], 'get_coef_dict') and callable(model_results["model"].get_coef_dict):
+            coef_dict = model_results["model"].get_coef_dict()
+        elif hasattr(model_results["model"], 'coef_dict') and model_results["model"].coef_dict:
+            coef_dict = model_results["model"].coef_dict
+        
+        if not coef_dict or feature_name not in coef_dict:
+            print(f"Warning: Feature '{feature_name}' not found in model '{model_name}'. Skipping.")
+            continue
+            
+        df = property_dfs[model_name]
+        feature_impact = coef_dict[feature_name]
+        avg_property_price = df["price"].mean() # promedio de precio de los inmuebles
+        percentage_impact = (feature_impact / avg_property_price) * 100
+        
+        display_name = feature_name.replace('_', ' ').replace('has ', '').title()
+        
+        
+        
+        impacts[model_name] = {
+            "feature_name": feature_name,
+            "display_name": display_name,
+            "absolute_impact": feature_impact,
+            "average_price": avg_property_price,
+            "percentage_impact": percentage_impact
+        }
+        
+    return impacts
+
 def cross_validate_lambda(X, y, lambdas, model_class: Model, n_splits=5, 
                           method='pseudo_inverse', regularization='l2', 
                           normalize=True, random_state=None,
