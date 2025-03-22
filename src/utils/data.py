@@ -306,7 +306,9 @@ def process_dataset(
     features_to_impute: List[str] = ['age', 'rooms'],
     location_columns: List[str] = ['lat', 'lon'],
     impute_by_zone: bool = False,
-    save_path: str = None
+    save_path: str = None,
+    create_zone_interactions: bool = False,
+    zone_interaction_features: List[str] = ['area', 'rooms', 'age', 'has_pool', 'is_house']
 ) -> Dict:
     """
     Process dataset with clustering and feature engineering.
@@ -314,6 +316,8 @@ def process_dataset(
     Args:
         ...
         impute_by_zone: If True, impute using zone means. If False, use global means
+        create_zone_interactions: If True, create interaction features between zone and specified features
+        zone_interaction_features: List of features to interact with zone
         ...
     """
     df = df.copy()
@@ -322,27 +326,9 @@ def process_dataset(
         location_data = df[location_columns].to_numpy()
         kmeans_model.fit(location_data)
         df['location_zone'] = kmeans_model.predict(location_data)
-    
-    if feature_engineering_ops is None:
-        feature_engineering_ops = [
-            {'name': 'pool_house', 'operation': lambda df: df['has_pool'] * df['is_house']},
-            {'name': 'house_area', 'operation': lambda df: df['area'] * df['is_house']},
-            {'name': 'dist_to_cluster_center', 'operation': lambda df: 
-                np.array([
-                    np.linalg.norm(
-                        df.loc[i, location_columns].values - 
-                        kmeans_model.cluster_centers_[df.loc[i, 'location_zone'].astype(int)]
-                    ) 
-                    for i in df.index
-                ])
-            }
-        ]
-    
-    new_features_df, feature_stats = _handle_feature_engineering(df, feature_engineering_ops)
-    df = pd.concat([df, new_features_df], axis=1)
-    
-    zone_stats = {}
-    if location_columns:
+        
+        # Calcular estadísticas por zona para posible imputación
+        zone_stats = {}
         for zone in range(kmeans_model.n_clusters):
             df_zone = df[df['location_zone'] == zone] 
             
@@ -367,15 +353,60 @@ def process_dataset(
                     df.loc[df['location_zone'] == zone, feature] = df.loc[
                         df['location_zone'] == zone, feature
                     ].fillna(stats[feature]['mean'])
-            
-        df_pos = df[location_columns + ['location_zone']] if location_columns else None
-        df = df.drop(location_columns, axis=1) if location_columns else df
+    else:
+        zone_stats = None
     
     # Imputación global si impute_by_zone es False
     if not impute_by_zone and features_to_impute:
         for feature in features_to_impute:
             global_mean = df[feature].mean()
             df[feature] = df[feature].fillna(global_mean)
+    
+    # Ahora que los datos están imputados, generamos características derivadas
+    if feature_engineering_ops is None:
+        feature_engineering_ops = [
+            {'name': 'pool_house', 'operation': lambda df: df['has_pool'] * df['is_house']},
+            {'name': 'house_area', 'operation': lambda df: df['area'] * df['is_house']},
+            {'name': 'dist_to_cluster_center', 'operation': lambda df: 
+                np.array([
+                    np.linalg.norm(
+                        df.loc[i, location_columns].values - 
+                        kmeans_model.cluster_centers_[df.loc[i, 'location_zone'].astype(int)]
+                    ) 
+                    for i in df.index
+                ])
+            }
+        ]
+    
+    new_features_df, feature_stats = _handle_feature_engineering(df, feature_engineering_ops)
+    df = pd.concat([df, new_features_df], axis=1)
+    
+    # Crear características de interacción entre zona y features seleccionadas
+    if create_zone_interactions and 'location_zone' in df.columns:
+        zone_interactions = {}
+        
+        for feature in zone_interaction_features:
+            if feature in df.columns:
+                for zone in range(kmeans_model.n_clusters):
+                    interaction_name = f'{feature}_zone_{zone}'
+                    # Crear una variable dummy que es feature * (location_zone == zone)
+                    zone_interactions[interaction_name] = df[feature] * (df['location_zone'] == zone)
+        
+        if zone_interactions:
+            zone_interactions_df = pd.DataFrame(zone_interactions)
+            df = pd.concat([df, zone_interactions_df], axis=1)
+            
+            # Actualizar feature_stats con estadísticas de las nuevas características
+            for col in zone_interactions:
+                feature_stats[col] = {
+                    'mean': zone_interactions[col].mean(),
+                    'std': zone_interactions[col].std(),
+                    'min': zone_interactions[col].min(),
+                    'max': zone_interactions[col].max()
+                }
+    
+    df_pos = df[location_columns + ['location_zone']] if location_columns else None
+    df = df.drop(location_columns, axis=1) if location_columns else df
 
     if save_path is not None:
         df.to_csv(save_path, index=False)

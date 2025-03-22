@@ -7,7 +7,7 @@ from models.regression.linear_regressor import LinearRegressor
 from models.regression.base import Model
 
 
-def visualize_regression_results( #TODO: implementar parametro de que figuras ver
+def visualize_regression_results( 
         y_true, 
         y_pred, 
         transform_func=None, 
@@ -85,7 +85,6 @@ def visualize_regression_results( #TODO: implementar parametro de que figuras ve
 
 
 def _create_scatter_plot(y_true, y_pred, labels, titles, fig_size, save_path, show_figures, fit_degree):
-    """Create scatter plot of actual vs predicted values with polynomial fit."""
     fig_scatter = plt.figure(figsize=fig_size)
     
     sns.scatterplot(x=y_true, y=y_pred, alpha=0.7, label="Datos")
@@ -124,7 +123,6 @@ def _create_scatter_plot(y_true, y_pred, labels, titles, fig_size, save_path, sh
 
 
 def _create_residuals_plot(y_pred, residuals, labels, titles, fig_size, save_path, show_figures):
-    """Create scatter plot of residuals vs predicted values."""
     fig_residuals = plt.figure(figsize=fig_size)
     
     sns.scatterplot(x=y_pred, y=residuals, alpha=0.7, label="Residuos")
@@ -144,7 +142,6 @@ def _create_residuals_plot(y_pred, residuals, labels, titles, fig_size, save_pat
     return fig_residuals
 
 def _create_distribution_plot(residuals, labels, titles, fig_size, save_path, show_figures):
-    """Create histogram with KDE of residuals using only numpy, seaborn and matplotlib."""
     fig_dist = plt.figure(figsize=fig_size)
     
     sns.histplot(residuals, kde=True, stat="density", label="Distribución")
@@ -170,10 +167,9 @@ def _create_distribution_plot(residuals, labels, titles, fig_size, save_path, sh
 
 
 def _create_qq_plot(residuals, titles, fig_size, save_path, show_figures):
-    """Crea un gráfico Q-Q de los residuos contra una distribución normal utilizando numpy y matplotlib."""
 
     def erfinv(y):
-        # Aproximación de la inversa de la función error (Winitzki)
+        # aproximación de la inversa de la función error (Winitzki)
         a = 0.147
         ln = np.log(1 - y**2)
         term1 = 2/(np.pi * a) + ln/2
@@ -181,20 +177,19 @@ def _create_qq_plot(residuals, titles, fig_size, save_path, show_figures):
     
     fig_qq = plt.figure(figsize=fig_size)
     
-    # Ordenar los residuos
     ordered_values = np.sort(residuals)
     n = len(residuals)
     
-    # Calcular los porcentajes para cada punto (p = (i-0.5)/n)
+    # calcular los porcentajes para cada punto (p = (i-0.5)/n)
     probs = (np.arange(1, n+1) - 0.5) / n
     
-    # Calcular los cuantiles teóricos de la distribución normal usando la función erfinv definida
+    # calcular los cuantiles teóricos de la distribución normal usando la función erfinv definida
     theoretical_quantiles = np.sqrt(2) * erfinv(2 * probs - 1)
     
-    # Ajustar una línea de referencia: regresión lineal entre los cuantiles teóricos y los valores observados
+    # ajustar una linea de referencia de regresión lineal entre los cuantiles teóricos y los valores observados
     slope, intercept = np.polyfit(theoretical_quantiles, ordered_values, 1)
     
-    # Calcular la correlación entre los cuantiles teóricos y observados para mostrarla en la leyenda
+    # correlacion entre los cuantiles teoricos y observados
     r = np.corrcoef(theoretical_quantiles, ordered_values)[0,1]
     
     plt.scatter(theoretical_quantiles, ordered_values, alpha=0.7, label="Cuantiles")
@@ -279,7 +274,7 @@ def compare_feature_impact(model_results_dict, property_dfs, feature_name='has_p
             
         df = property_dfs[model_name]
         feature_impact = coef_dict[feature_name]
-        avg_property_price = df["price"].mean()
+        avg_property_price = df["price"].mean() # promedio de precio de los inmuebles
         percentage_impact = (feature_impact / avg_property_price) * 100
         
         display_name = feature_name.replace('_', ' ').replace('has ', '').title()
