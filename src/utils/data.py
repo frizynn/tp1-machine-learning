@@ -7,9 +7,24 @@ from models.regression.base import Model
 
 
 def preprocess_data(df,save_path=None):
+    """
+    Preprocesa datos inmobiliarios convirtiendo unidades de sqft a m2.
+    
+    Parámetros:
+    -----------
+    df : pd.DataFrame
+        DataFrame con los datos a preprocesar
+    save_path : str, default=None
+        Ruta para guardar los datos preprocesados
+        
+    Retorna:
+    --------
+    pd.DataFrame
+        DataFrame preprocesado
+    """
     if 'area_units' not in df.columns:
         raise ValueError("La columna 'area_units' no existe en el DataFrame.")
-    df.loc[df['area_units'] == 'sqft', 'area'] = df['area'] * 0.092903
+    df.loc[df['area_units'] == 'sqft', 'area'] = df['area'] * 0.092903  # convierte sqft a m2
     df['area_units'] = 'm2'  
     df = df.drop('area_units', axis=1)
     if save_path:
@@ -58,6 +73,19 @@ def round_input(X, columnas):
 def get_nan_features(
     df: pd.DataFrame,
 ):
+    """
+    Encuentra columnas con valores NaN y devuelve un diccionario con conteos.
+    
+    Parámetros:
+    -----------
+    df : pd.DataFrame
+        DataFrame a analizar
+        
+    Retorna:
+    --------
+    dict
+        Diccionario con nombres de columnas como claves y conteos de NaN como valores
+    """
     nan_features = df.isnull().sum()
     nan_features = nan_features[nan_features > 0]
     nan_features = nan_features.to_dict()
@@ -66,7 +94,21 @@ def get_nan_features(
 
 
 def split_by_nan_features(df, nan_features):
-
+    """
+    Divide los datos en grupos basados en patrones de NaN en las características especificadas.
+    
+    Parámetros:
+    -----------
+    df : pd.DataFrame
+        DataFrame a dividir
+    nan_features : list
+        Lista de nombres de columnas con valores NaN
+        
+    Retorna:
+    --------
+    tuple
+        (*exclusive_missing, all_missing, all_present) - DataFrames con diferentes patrones de NaN
+    """
     exclusive_missing = []
     for (
         i,
@@ -108,12 +150,12 @@ def split_test_train_with_label(
     """
     Divide los datos en conjuntos de entrenamiento y prueba, con opción de normalización.
     
-    Parameters
-    ----------
+    Parámetros:
+    -----------
     X : pd.DataFrame
         Features
     y : pd.Series
-        Target variable
+        Variable objetivo
     test_size : float
         Proporción del conjunto de prueba
     random_state : int
@@ -123,13 +165,15 @@ def split_test_train_with_label(
     normalize : bool
         Si debe normalizar los datos usando la media y std de X_train
     transform_target : Callable
+        Función para transformar la variable objetivo
         
-    Returns
-    -------
+    Retorna:
+    --------
     tuple
         (X_train, X_test, y_train, y_test)
     """
     if drop_target:
+        # elimina columna(s) objetivo de las características si está presente
         if isinstance(y, pd.Series) and y.name in X.columns:
             X = X.drop(columns=[y.name])
         elif isinstance(y, pd.DataFrame):
@@ -141,7 +185,7 @@ def split_test_train_with_label(
     n = len(X)
     n_test = int(n * test_size)
     n_train = n - n_test
-    idx = np.random.permutation(n)
+    idx = np.random.permutation(n)  # crea permutación aleatoria de índices
     X = X.iloc[idx]
     y = y.iloc[idx]
 
@@ -154,18 +198,18 @@ def split_test_train_with_label(
     y_test = y.iloc[n_train:]
     
     if normalize:
-        # Calcular media y desviación estándar solo con X_train
+        # calcula parámetros de normalización usando solo datos de entrenamiento
         train_mean = X_train.mean()
         train_std = X_train.std()
         
-        # Evitar división por cero en columnas constantes
+        # evita división por cero para características constantes
         train_std = train_std.replace(0, 1)
         
-        # Normalizar tanto X_train como X_test usando estadísticas de X_train
+        # normaliza ambos conjuntos usando estadísticas de entrenamiento
         X_train = (X_train - train_mean) / train_std
         X_test = (X_test - train_mean) / train_std
         
-        # Guardar los parámetros de normalización como atributos del DataFrame
+        # guarda los parámetros de normalización como atributos del DataFrame
         X_train.attrs['normalization'] = {'mean': train_mean, 'std': train_std}
         X_test.attrs['normalization'] = {'mean': train_mean, 'std': train_std}
     
@@ -181,22 +225,22 @@ def load_and_prepare_data(
     transform_target=None
 ):
     """
-    Load data from a dataframe or file and prepare features and target.
+    Carga datos desde un dataframe o archivo y prepara características y objetivo.
     
-    Parameters:
+    Parámetros:
     -----------
     target_column : str
-        Name of the target variable column
+        Nombre de la columna de variable objetivo
     df : pd.DataFrame, default=None
-        DataFrame with data
+        DataFrame con datos
     data_path : str, default=None
-        Path to CSV file if df is not provided
+        Ruta al archivo CSV si df no se proporciona
     feature_columns : list, default=None
-        List of feature columns to use. If None, uses all columns except target
+        Lista de columnas de características a usar. Si es None, usa todas excepto target
     transform_target : callable, default=None
-        Function to transform target variable
+        Función para transformar la variable objetivo
         
-    Returns:
+    Retorna:
     --------
     tuple
         (X, y, feature_columns)
@@ -215,23 +259,35 @@ def load_and_prepare_data(
     return X, y, feature_columns
 # hola
 def _calculate_normalization_params(data: pd.DataFrame) -> Dict:
-    """Calculate normalization parameters from data."""
-    # Identificar columnas binarias (solo contienen 0 y 1)
+    """
+    Calcula parámetros de normalización a partir de los datos.
+    
+    Parámetros:
+    -----------
+    data : pd.DataFrame
+        Datos para calcular parámetros de normalización
+        
+    Retorna:
+    --------
+    dict
+        Diccionario con parámetros 'mean' y 'std'
+    """
+    # identifica columnas binarias (solo contienen 0 y 1)
     binary_cols = data.apply(lambda x: set(x.unique()) <= {0, 1})
     
-    # Obtener solo columnas no binarias
+    # obtiene solo columnas no binarias
     non_binary_data = data.loc[:, ~binary_cols]
     
-    # Crear Series de tipo float64 para evitar problemas de compatibilidad
+    # crea series de tipo float64 para evitar problemas de compatibilidad
     params = {
         'mean': pd.Series(0.0, index=data.columns, dtype=float),
         'std': pd.Series(1.0, index=data.columns, dtype=float)
     }
     
-    # Actualizar parámetros solo para columnas no binarias
+    # actualiza parámetros solo para columnas no binarias
     if not non_binary_data.empty:
         means = non_binary_data.mean()
-        stds = non_binary_data.std().replace(0, 1.0)  # Evitar división por cero
+        stds = non_binary_data.std().replace(0, 1.0)  # evita división por cero
         
         for col in non_binary_data.columns:
             params['mean'][col] = means[col]
@@ -240,11 +296,25 @@ def _calculate_normalization_params(data: pd.DataFrame) -> Dict:
     return params
 
 def _apply_normalization(data: pd.DataFrame, params: Dict) -> pd.DataFrame:
-    """Apply normalization using given parameters."""
+    """Aplica normalización usando parámetros dados."""
     return (data - params['mean']) / params['std']
 
 def normalize_data(X_train: pd.DataFrame, X_test: pd.DataFrame) -> tuple:
-    """Normalize features using training data statistics."""
+    """
+    Normaliza características usando estadísticas de datos de entrenamiento.
+    
+    Parámetros:
+    -----------
+    X_train : pd.DataFrame
+        Datos de entrenamiento a normalizar
+    X_test : pd.DataFrame
+        Datos de prueba a normalizar usando estadísticas de entrenamiento
+        
+    Retorna:
+    --------
+    tuple
+        (X_train_normalizado, X_test_normalizado, parámetros_normalización)
+    """
     params = _calculate_normalization_params(X_train)
     X_train_normalized = _apply_normalization(X_train, params)
     X_test_normalized = _apply_normalization(X_test, params)
@@ -254,16 +324,16 @@ def normalize_data(X_train: pd.DataFrame, X_test: pd.DataFrame) -> tuple:
 
 def print_model_evaluation(model, feature_columns, metrics_results):
     """
-    Print model evaluation results.
+    Imprime resultados de evaluación del modelo.
     
-    Parameters:
+    Parámetros:
     -----------
     model : Model
-        Trained model instance
+        Instancia del modelo entrenado
     feature_columns : list
-        List of feature column names
+        Lista de nombres de columnas de características
     metrics_results : dict
-        Dictionary with metric values
+        Diccionario con valores de métricas
     """
     print(f"\n=== Model Evaluation ({model.__class__.__name__}) ===")
     
@@ -280,7 +350,21 @@ def print_model_evaluation(model, feature_columns, metrics_results):
 
 
 def _handle_feature_engineering(df: pd.DataFrame, operations: List[Dict]) -> Tuple[pd.DataFrame, Dict]:
-    """Apply feature engineering operations and collect statistics."""
+    """
+    Aplica operaciones de ingeniería de características y recopila estadísticas.
+    
+    Parámetros:
+    -----------
+    df : pd.DataFrame
+        DataFrame para aplicar operaciones
+    operations : List[Dict]
+        Lista de diccionarios con claves 'name' y 'operation'
+        
+    Retorna:
+    --------
+    Tuple
+        (new_features_df, feature_stats)
+    """
     new_features = {}
     feature_stats = {}
     
@@ -288,6 +372,7 @@ def _handle_feature_engineering(df: pd.DataFrame, operations: List[Dict]) -> Tup
         feature_name = op['name']
         operation = op['operation']
         
+        # aplica operación - ya sea llamable o expresión de cadena
         new_features[feature_name] = operation(df) if callable(operation) else df.eval(operation)
         feature_stats[feature_name] = {
             'mean': new_features[feature_name].mean(),
@@ -311,23 +396,43 @@ def process_dataset(
     zone_interaction_features: List[str] = ['area', 'rooms', 'age', 'has_pool', 'is_house']
 ) -> Dict:
     """
-    Process dataset with clustering and feature engineering.
+    Procesa conjunto de datos con agrupamiento e ingeniería de características.
     
-    Args:
-        ...
-        impute_by_zone: If True, impute using zone means. If False, use global means
-        create_zone_interactions: If True, create interaction features between zone and specified features
-        zone_interaction_features: List of features to interact with zone
-        ...
+    Parámetros:
+    -----------
+    df : pd.DataFrame
+        Datos a procesar
+    kmeans_model : KMeans
+        Modelo KMeans para agrupar ubicaciones
+    feature_engineering_ops : List[Dict]
+        Operaciones para ingeniería de características
+    features_to_impute : List[str]
+        Características que necesitan imputación
+    location_columns : List[str]
+        Columnas que contienen datos de ubicación
+    impute_by_zone : bool
+        Si es True, imputa valores faltantes usando medias de zona
+    save_path : str
+        Ruta para guardar datos procesados
+    create_zone_interactions : bool
+        Si es True, crea características de interacción entre zonas y características específicas
+    zone_interaction_features : List[str]
+        Características para interactuar con zonas
+        
+    Retorna:
+    --------
+    Dict
+        Diccionario con datos procesados y estadísticas
     """
     df = df.copy()
     
     if location_columns:
+        # agrupa ubicaciones usando kmeans
         location_data = df[location_columns].to_numpy()
         kmeans_model.fit(location_data)
         df['location_zone'] = kmeans_model.predict(location_data)
         
-        # Calcular estadísticas por zona para posible imputación
+        # calcula estadísticas por zona para posible imputación
         zone_stats = {}
         for zone in range(kmeans_model.n_clusters):
             df_zone = df[df['location_zone'] == zone] 
@@ -347,7 +452,7 @@ def process_dataset(
             
             zone_stats[f'zone_{zone}'] = stats
             
-            # Imputación según impute_by_zone
+            # imputa valores faltantes por zona si se solicita
             if impute_by_zone:
                 for feature in features_to_impute:
                     df.loc[df['location_zone'] == zone, feature] = df.loc[
@@ -356,13 +461,13 @@ def process_dataset(
     else:
         zone_stats = None
     
-    # Imputación global si impute_by_zone es False
+    # imputación global si no se imputa por zona
     if not impute_by_zone and features_to_impute:
         for feature in features_to_impute:
             global_mean = df[feature].mean()
             df[feature] = df[feature].fillna(global_mean)
     
-    # Ahora que los datos están imputados, generamos características derivadas
+    # genera características derivadas después de la imputación
     if feature_engineering_ops is None:
         feature_engineering_ops = [
             {'name': 'pool_house', 'operation': lambda df: df['has_pool'] * df['is_house']},
@@ -381,7 +486,7 @@ def process_dataset(
     new_features_df, feature_stats = _handle_feature_engineering(df, feature_engineering_ops)
     df = pd.concat([df, new_features_df], axis=1)
     
-    # Crear características de interacción entre zona y features seleccionadas
+    # crea características de interacción de zona si se solicita
     if create_zone_interactions and 'location_zone' in df.columns:
         zone_interactions = {}
         
@@ -389,14 +494,14 @@ def process_dataset(
             if feature in df.columns:
                 for zone in range(kmeans_model.n_clusters):
                     interaction_name = f'{feature}_zone_{zone}'
-                    # Crear una variable dummy que es feature * (location_zone == zone)
+                    # crea variable dummy: feature * (location_zone == zone)
                     zone_interactions[interaction_name] = df[feature] * (df['location_zone'] == zone)
         
         if zone_interactions:
             zone_interactions_df = pd.DataFrame(zone_interactions)
             df = pd.concat([df, zone_interactions_df], axis=1)
             
-            # Actualizar feature_stats con estadísticas de las nuevas características
+            # actualiza feature_stats con las nuevas características de interacción
             for col in zone_interactions:
                 feature_stats[col] = {
                     'mean': zone_interactions[col].mean(),
@@ -422,43 +527,23 @@ def compare_feature_impact(model_results_dict, property_dfs, feature_name='has_p
                        
                          ):
     """
-    Compare the impact of a specific feature across different models.
+    Compara el impacto de una característica específica entre diferentes modelos.
     
-    Parameters
-    ----------
+    Parámetros:
+    -----------
     model_results_dict : dict
-        Dictionary mapping model names to model results (from train_and_evaluate_model),
-        or a single model result dictionary (will be treated as a single model)
+        Diccionario de resultados de modelos o un solo diccionario de resultados
     property_dfs : dict
-        Dictionary mapping model names to corresponding DataFrames,
-        or a single DataFrame (will be treated as a single model)
-    feature_name : str, default='has_pool'
-        Name of the feature to analyze impact
-    plot : bool, default=False
-        Whether to generate and display visualization (default changed to False)
-    y_lim : tuple or None, default=None
-        Custom y-axis limits for absolute impact (min, max)
-    x_lim : tuple or None, default=None
-        Custom x-axis limits for property price range (min, max)
-    currency : str, default='$'
-        Currency symbol to use in labels and titles
-    custom_title : str or None, default=None
-        Custom plot title, if None a default is generated
-    style : str, default='whitegrid'
-        Seaborn plotting style to use
-    fixed_x_ticks : array-like or None, default=None
-        Custom tick positions for x-axis
-    fixed_y1_ticks : array-like or None, default=None
-        Custom tick positions for primary y-axis (absolute impact)
-    fixed_y2_ticks : array-like or None, default=None
-        Custom tick positions for secondary y-axis (percentage impact)
-    
-    Returns
-    -------
+        Diccionario de DataFrames o un solo DataFrame
+    feature_name : str
+        Nombre de la característica a analizar
+        
+    Retorna:
+    --------
     dict
-        Dictionary containing analysis results for each model
+        Diccionario con resultados de análisis de impacto para cada modelo
     """
-
+    # maneja el caso donde se proporciona un solo modelo
     if not isinstance(model_results_dict, dict) or (isinstance(model_results_dict, dict) and 'model' in model_results_dict):
         model_results_dict = {"Modelo": model_results_dict}
         property_dfs = {"Modelo": property_dfs}
@@ -472,6 +557,7 @@ def compare_feature_impact(model_results_dict, property_dfs, feature_name='has_p
 
     impacts = {}
     for model_name, model_results in model_results_dict.items():
+        # intenta obtener diccionario de coeficientes del modelo
         coef_dict = None
         if hasattr(model_results["model"], 'get_coef_dict') and callable(model_results["model"].get_coef_dict):
             coef_dict = model_results["model"].get_coef_dict()
@@ -484,7 +570,7 @@ def compare_feature_impact(model_results_dict, property_dfs, feature_name='has_p
             
         df = property_dfs[model_name]
         feature_impact = coef_dict[feature_name]
-        avg_property_price = df["price"].mean() # promedio de precio de los inmuebles
+        avg_property_price = df["price"].mean() # precio promedio de propiedades
         percentage_impact = (feature_impact / avg_property_price) * 100
         
         display_name = feature_name.replace('_', ' ').replace('has ', '').title()
@@ -509,27 +595,41 @@ def cross_validate_lambda(X, y, lambdas, model_class: Model, n_splits=5,
                           metrics=None,
                           inv_transform_pred=None):
     """
-    Realiza validación cruzada para distintos valores de lambda y retorna el ECM promedio 
-    por cada lambda, junto con el lambda óptimo y el ECM mínimo.
+    Realiza validación cruzada para diferentes valores de lambda y devuelve métricas promedio.
     
     Parámetros:
-        X (pd.DataFrame): Variables predictoras.
-        y (pd.Series): Variable objetivo.
-        lambdas (iterable): Secuencia de valores de lambda a evaluar.
-        model_class (Model): Clase del modelo de regresión a utilizar.
-        n_splits (int): Número de particiones para validación cruzada.
-        method (str): Método de ajuste del modelo.
-        regularization (str): Tipo de regularización.
-        normalize (bool): Si True, normaliza las variables.
-        random_state (int, opcional): Semilla para reproducibilidad.
-        variable (str): Variable a optimizar. Puede ser 'penalty' o 'degree'.
-        transform_target (callable, opcional): Función para transformar la variable objetivo.
-        metrics (list, opcional): Lista de funciones de métricas a evaluar.
-        inv_transform_pred (callable, opcional): Función para invertir la transformación de la variable objetivo.
+    -----------
+    X : pd.DataFrame
+        Matriz de características
+    y : pd.Series
+        Variable objetivo
+    lambdas : iterable
+        Valores de lambda (o grado) a evaluar
+    model_class : Model
+        Clase del modelo de regresión a usar
+    n_splits : int
+        Número de particiones para validación cruzada
+    method : str
+        Método de ajuste para el modelo
+    regularization : str
+        Tipo de regularización ('l1', 'l2')
+    normalize : bool
+        Si se deben normalizar las características
+    random_state : int
+        Semilla para reproducibilidad
+    variable : str
+        Parámetro a optimizar ('penalty' o 'degree')
+    transform_target : callable
+        Función para transformar la variable objetivo
+    metrics : list
+        Lista de funciones de métricas a evaluar
+    inv_transform_pred : callable
+        Función para invertir la transformación de la variable objetivo
+        
     Retorna:
-        tuple: (diccionario con lambda óptimo para cada métrica, 
-                diccionario con el ECM mínimo para cada métrica, 
-                diccionario con los ECM promedio para cada lambda para cada métrica)
+    --------
+    tuple
+        (optimal_lambda, min_cv_metrics, cv_metrics_scores)
     """
     if metrics is None:
         metrics = [mse_score, r2_score]
@@ -539,6 +639,7 @@ def cross_validate_lambda(X, y, lambdas, model_class: Model, n_splits=5,
     
     
     def numpy_kfold(n_samples, n_splits, random_state=None):
+        """implementación personalizada de validación cruzada k-fold"""
         if random_state is not None:
             np.random.seed(random_state)
         indices = np.arange(n_samples)
@@ -554,12 +655,12 @@ def cross_validate_lambda(X, y, lambdas, model_class: Model, n_splits=5,
     n_samples = len(X)
     folds = list(numpy_kfold(n_samples, n_splits, random_state))
 
-    # Inicializar diccionario usando el nombre de cada métrica como clave
+    # inicializa diccionario usando nombres de métricas como claves
     cv_metrics_scores = {metric.__name__.lower(): [] for metric in metrics}
     
-    # Para cada valor de lambda (o grado)
+    # para cada valor de lambda (o grado)
     for lambda_val in lambdas:
-        # Inicializamos los puntajes para cada fold para cada métrica
+        # inicializa puntuaciones para cada partición y métrica
         fold_metrics_scores = {metric.__name__.lower(): [] for metric in metrics}
         for train_idx, val_idx in folds:
             X_train = X.iloc[train_idx].copy()
@@ -572,16 +673,19 @@ def cross_validate_lambda(X, y, lambdas, model_class: Model, n_splits=5,
                 y_val = transform_target(y_val)
 
             if normalize:
+                # normaliza usando solo estadísticas de datos de entrenamiento
                 mean = X_train.mean()
-                std = X_train.std().replace(0, 1e-8)
+                std = X_train.std().replace(0, 1e-8)  # evita división por cero
                 X_train = (X_train - mean) / std
                 X_val = (X_val - mean) / std
             
             model = model_class() 
             if variable == 'degree':
+                # para regresión polinómica - establece grado y luego ajusta
                 model.change_degree(lambda_val)
                 model.fit(X_train, y_train, regularization=regularization)
             elif variable == 'penalty':
+                # para modelos regularizados - ajusta con penalización específica
                 model.fit(X_train, y_train, method=method, alpha=lambda_val, regularization=regularization)
             else:
                 model.fit(X_train, y_train, regularization=regularization)
@@ -590,24 +694,26 @@ def cross_validate_lambda(X, y, lambdas, model_class: Model, n_splits=5,
             y_pred = model.predict(X_val)
 
             if inv_transform_pred is not None:
+                # invierte transformación para cálculo correcto de métrica
                 y_pred = inv_transform_pred(y_pred)
                 y_val = inv_transform_pred(y_val)
             
 
             for metric in metrics:
-                # Llamar a la función métrica pasando el modelo con el parámetro keyword
+                # calcula cada métrica y almacena
                 score = metric(y_pred, y_val)
                 fold_metrics_scores[metric.__name__.lower()].append(score)
         
-        # Promediar las métricas de cada fold para el valor actual de lambda
+        # promedia métricas a través de particiones para lambda actual
         for metric in metrics:
             key = metric.__name__.lower()
             mean_score = np.mean(fold_metrics_scores[key])
             cv_metrics_scores[key].append(mean_score)
 
-    # Convertir las listas en arrays de NumPy
+    # convierte listas a arrays de NumPy
     cv_metrics_scores = {key: np.array(scores) for key, scores in cv_metrics_scores.items()}
-    optimal_idx = {key: np.argmin(scores) if key == 'mse' else np.argmax(scores) for key, scores in cv_metrics_scores.items()}
+    # encuentra índice óptimo para cada métrica (min para mse, max para otros como r2)
+    optimal_idx = {key: np.argmin(scores) if key == 'mse_score' else np.argmax(scores) for key, scores in cv_metrics_scores.items()}
     optimal_lambda = {key: lambdas[optimal_idx[key]] for key in cv_metrics_scores}
     min_cv_metrics = {key: cv_metrics_scores[key][optimal_idx[key]] for key in cv_metrics_scores}
     
