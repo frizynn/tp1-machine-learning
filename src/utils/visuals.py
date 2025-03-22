@@ -213,8 +213,8 @@ def _create_qq_plot(residuals, titles, fig_size, save_path, show_figures):
     
     return fig_qq
 
-def compare_feature_impact(model_results_dict, property_dfs, feature_name='has_pool', 
-                        currency='$', 
+def compare_feature_impact(model_results_dict, property_dfs, feature_name='has_pool' 
+                       
                          ):
     """
     Compare the impact of a specific feature across different models.
@@ -267,7 +267,6 @@ def compare_feature_impact(model_results_dict, property_dfs, feature_name='has_p
 
     impacts = {}
     for model_name, model_results in model_results_dict.items():
-
         coef_dict = None
         if hasattr(model_results["model"], 'get_coef_dict') and callable(model_results["model"].get_coef_dict):
             coef_dict = model_results["model"].get_coef_dict()
@@ -342,43 +341,53 @@ def plot_weights_vs_lambda(lambdas, weights, feature_names, custom_titles=None):
     plt.tight_layout()
     plt.show()
 
-def plot_mse_vs_lambda(ax, lambdas, mse_scores):
+def plot_metric_vs_lambda(ax, lambdas, metric_scores, metric_name="MSE",marker='o'):
     """
-    Grafica el Error Cuadrático Medio (MSE) en función de λ.
+    Grafica una métrica (MSE o R²) en función de λ.
     
     Parámetros:
         - ax: Objeto de ejes de Matplotlib donde se dibujará el gráfico.
         - lambdas: Lista o array de valores de λ.
-        - mse_scores: Lista o array de valores de MSE.
+        - metric_scores: Lista o array de valores de la métrica.
+        - metric_name: Nombre de la métrica ("MSE" o "R2"). Por defecto "MSE".
     
     Retorna:
-        - min_lambda: Valor de λ que minimiza el MSE.
-        - min_mse: MSE mínimo obtenido.
+        - optimal_lambda: Valor de λ que optimiza la métrica (minimiza MSE o maximiza R²).
+        - optimal_metric: Valor óptimo de la métrica obtenido.
     """
-    # Graficar la línea del MSE
-    sns.lineplot(x=lambdas, y=mse_scores, ax=ax, color='blue', label='MSE')
+    # Graficar la línea de la métrica
+    sns.lineplot(x=lambdas, y=metric_scores, ax=ax, color='royalblue', label=metric_name,
+                marker=marker)
+
+    if metric_name.upper() == "R2":
+        # Para R², buscamos el máximo
+        optimal_idx = np.argmax(metric_scores)
+        optimal_metric = metric_scores[optimal_idx]
+        optimal_lambda = lambdas[optimal_idx]
+        optimal_type = "Max"
+    else:
+        # Para MSE u otras métricas de error, buscamos el mínimo
+        optimal_idx = np.argmin(metric_scores)
+        optimal_metric = metric_scores[optimal_idx]
+        optimal_lambda = lambdas[optimal_idx]
+        optimal_type = "Min"
     
-    # Calcular el mínimo
-    min_mse_idx = np.argmin(mse_scores)
-    min_mse = mse_scores[min_mse_idx]
-    min_lambda = lambdas[min_mse_idx]
-    
-    # Marcar el mínimo con un punto y una línea vertical discontinua
-    ax.scatter([min_lambda], [min_mse], color='red', s=100, zorder=5,
-                label=f'Min MSE: {min_mse:.4f} (λ = {min_lambda:.4f})')
-    ax.axvline(x=min_lambda, color='red', linestyle='--', alpha=0.7)
+    # Marcar el punto óptimo con un punto y una línea vertical discontinua
+    ax.scatter([optimal_lambda], [optimal_metric], color='red', s=100, zorder=5,
+                label=f'{optimal_type} {metric_name}: {optimal_metric:.4f} (λ = {optimal_lambda:.4f})')
+    ax.axvline(x=optimal_lambda, color='red', linestyle='--', alpha=0.7)
     
     # Agregar texto con valores óptimos
-    ax.text(0.02, 0.98, f'λ óptimo: {min_lambda:.4f}\nMSE mínimo: {min_mse:.4f}',
+    ax.text(0.02, 0.98, f'λ óptimo: {optimal_lambda:.4f}\n{metric_name} {optimal_type.lower()}: {optimal_metric:.4f}',
             transform=ax.transAxes, bbox=dict(facecolor='white', alpha=0.8),
             verticalalignment='top')
     
     ax.set_xlabel('Regularization strength (λ)')
-    ax.set_ylabel('Error cuadrático medio')
-    ax.set_title('MSE vs λ')
+    ax.set_ylabel(metric_name)
+    ax.set_title(f'{metric_name} vs λ')
     ax.grid(True)
     
-    return min_lambda, min_mse
+    return optimal_lambda, optimal_metric
 
 def plot_r2_vs_lambda(ax, lambdas, r2_scores):
     """
@@ -428,8 +437,8 @@ def plot_performance_metrics(lambdas, mse_scores, r2_scores):
     """
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
     
-    min_lambda, min_mse = plot_mse_vs_lambda(ax1, lambdas, mse_scores)
-    max_lambda, max_r2 = plot_r2_vs_lambda(ax2, lambdas, r2_scores)
+    min_lambda, min_mse = plot_metric_vs_lambda(ax1, lambdas, mse_scores, metric_name="MSE",marker=None)
+    max_lambda, max_r2 = plot_metric_vs_lambda(ax2, lambdas, r2_scores, metric_name="R2",marker=None)
     
     plt.tight_layout()
     plt.suptitle('Métricas de rendimiento vs Regularization Strength', y=1.05, fontsize=16)
@@ -439,13 +448,13 @@ def plot_performance_metrics(lambdas, mse_scores, r2_scores):
 
 def plot_cv_results(lambdas, cv_mse_scores, optimal_lambda, min_cv_mse, title=None, ax=None):
     """
-    Grafica la variación del ECM promedio (de validación cruzada) en función de λ utilizando seaborn.
+    Grafica la variación del MSE promedio (de validación cruzada) en función de λ utilizando seaborn.
     
     Parámetros:
       - lambdas: Secuencia de valores de λ.
-      - cv_mse_scores: ECM promedio correspondiente a cada λ.
-      - optimal_lambda: Valor de λ que minimiza el ECM.
-      - min_cv_mse: ECM mínimo obtenido.
+      - cv_mse_scores: MSE promedio correspondiente a cada λ.
+      - optimal_lambda: Valor de λ que minimiza el MSE.
+      - min_cv_mse: MSE mínimo obtenido.
       - title (str, opcional): Título del gráfico.
       - ax (matplotlib.axes.Axes, opcional): Eje sobre el cual dibujar.
     
@@ -458,18 +467,18 @@ def plot_cv_results(lambdas, cv_mse_scores, optimal_lambda, min_cv_mse, title=No
     sns.set_style("whitegrid")
     
     # Crear DataFrame para graficar usando seaborn
-    data = pd.DataFrame({'lambda': lambdas, 'ECM': cv_mse_scores})
-    sns.lineplot(data=data, x='lambda', y='ECM', ax=ax, label='ECM promedio')
+    data = pd.DataFrame({'lambda': lambdas, 'MSE': cv_mse_scores})
+    sns.lineplot(data=data, x='lambda', y='MSE', ax=ax, label='MSE promedio')
     
     # Marcar el lambda óptimo con un punto y una línea vertical discontinua incluida en la leyenda
     ax.scatter([optimal_lambda], [min_cv_mse], color='red', s=100, zorder=5,
-               label=f'Min ECM: {min_cv_mse:.4f} (λ = {optimal_lambda:.4f})')
+               label=f'Min MSE: {min_cv_mse:.4f} (λ = {optimal_lambda:.4f})')
     ax.axvline(x=optimal_lambda, color='red', linestyle='--', alpha=0.7)
     
     ax.set_xlabel('Intensidad de regularización (λ)', fontsize=12)
-    ax.set_ylabel('Error Cuadrático Medio (ECM) - Validación Cruzada', fontsize=12)
+    ax.set_ylabel('MSE - Validación Cruzada', fontsize=12)
     if title is None:
-        title = 'Validación Cruzada: ECM vs λ'
+        title = 'Validación Cruzada: MSE vs λ'
     ax.set_title(title, fontsize=14)
     ax.legend()
     ax.grid(True, alpha=0.3)

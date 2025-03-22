@@ -6,6 +6,16 @@ from models.regression.base import Model
 
 
 
+def preprocess_data(df,save_path=None):
+    if 'area_units' not in df.columns:
+        raise ValueError("La columna 'area_units' no existe en el DataFrame.")
+    df.loc[df['area_units'] == 'sqft', 'area'] = df['area'] * 0.092903
+    df['area_units'] = 'm2'  
+    df = df.drop('area_units', axis=1)
+    if save_path:
+        df.to_csv(save_path, index=False)
+    return df
+
 def mse_score(y_pred, y_test, round=False):
     """
     Calcula el error cuadrático medio (MSE) entre la predicción y el target.
@@ -242,7 +252,7 @@ def normalize_data(X_train: pd.DataFrame, X_test: pd.DataFrame) -> tuple:
     return X_train_normalized, X_test_normalized, params
 
 
-def print_model_evaluation(model, feature_columns, metrics_results,transorm_target=None):
+def print_model_evaluation(model, feature_columns, metrics_results):
     """
     Print model evaluation results.
     
@@ -315,9 +325,17 @@ def process_dataset(
     
     if feature_engineering_ops is None:
         feature_engineering_ops = [
-            {'name': 'area_per_room', 'operation': lambda df: df['area'] / df['rooms']},
             {'name': 'pool_house', 'operation': lambda df: df['has_pool'] * df['is_house']},
-            {'name': 'house_area', 'operation': lambda df: df['area'] * df['is_house']}
+            {'name': 'house_area', 'operation': lambda df: df['area'] * df['is_house']},
+            {'name': 'dist_to_cluster_center', 'operation': lambda df: 
+                np.array([
+                    np.linalg.norm(
+                        df.loc[i, location_columns].values - 
+                        kmeans_model.cluster_centers_[df.loc[i, 'location_zone'].astype(int)]
+                    ) 
+                    for i in df.index
+                ])
+            }
         ]
     
     new_features_df, feature_stats = _handle_feature_engineering(df, feature_engineering_ops)
@@ -401,6 +419,10 @@ def cross_validate_lambda(X, y, lambdas, model_class: Model, n_splits=5,
     """
     if metrics is None:
         metrics = [mse_score, r2_score]
+
+    if transform_target and inv_transform_pred is None:
+        raise ValueError("transform_target y inv_transform_pred no pueden ser None al mismo tiempo. Si se usa transform_target, se debe usar inv_transform_pred para invertir la transformación para calcular las métricas.")
+    
     
     def numpy_kfold(n_samples, n_splits, random_state=None):
         if random_state is not None:
@@ -450,11 +472,13 @@ def cross_validate_lambda(X, y, lambdas, model_class: Model, n_splits=5,
             else:
                 model.fit(X_train, y_train, regularization=regularization)
 
+            
+            y_pred = model.predict(X_val)
+
             if inv_transform_pred is not None:
                 y_pred = inv_transform_pred(y_pred)
                 y_val = inv_transform_pred(y_val)
             
-            y_pred = model.predict(X_val)
 
             for metric in metrics:
                 # Llamar a la función métrica pasando el modelo con el parámetro keyword

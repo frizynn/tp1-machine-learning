@@ -1,9 +1,6 @@
 import numpy as np
-import pandas as pd
-from enum import Enum
-from typing import Union, Optional, Dict
-from matplotlib import pyplot as plt
-import seaborn as sns
+
+
 
 
 from .data import (
@@ -44,13 +41,13 @@ def evaluate_model(model, X_test, y_test, metrics=None, inv_transform_pred=None)
     if metrics is None:
         metrics = [mse_score, r2_score]
         
-    if inv_transform_pred is not None:
-        y_test = inv_transform_pred(y_test)
+
     
     y_pred_test = model.predict(X_test)
 
     if inv_transform_pred is not None:
         y_pred_test = inv_transform_pred(y_pred_test)
+        y_test = inv_transform_pred(y_test)
 
     results = {}
     for metric in metrics:
@@ -111,6 +108,7 @@ def train_and_evaluate_model(
     dict
         Dictionary with model, data splits, and evaluation metrics
     """
+    
     # Default parameters
     if fit_params is None:
         fit_params = {'method': 'gradient_descent', 'learning_rate': 0.01, 'epochs': 1000}
@@ -120,6 +118,9 @@ def train_and_evaluate_model(
         
     if model_class is None:
        raise Exception("Es necesario especificar el modelo")
+    
+    if transform_target and not inv_transform_pred:
+        raise Exception("Es necesario especificar la función de inv_transform_pred")
     
     # Load and prepare data
     X, y, feature_columns = load_and_prepare_data(
@@ -146,7 +147,7 @@ def train_and_evaluate_model(
     metrics_results = evaluate_model(model, X_test, y_test, metrics, inv_transform_pred)
 
     if verbose:
-        print_model_evaluation(model, feature_columns, metrics_results,transform_target)
+        print_model_evaluation(model, feature_columns, metrics_results)
     
     # Prepare results
     results = {
