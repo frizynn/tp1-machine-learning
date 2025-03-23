@@ -6,48 +6,83 @@ from .data import (
     load_and_prepare_data,
     normalize_data,
     mse_score,
-    r2_score
-
+    r2_score,
+    evaluate_model
 )
 
-
-def evaluate_model(model, X_test, y_test, metrics=None, inv_transform_pred=None):
+def prepare_and_evaluate_test_data(
+    df_test, 
+    model, 
+    normalization_params=None, 
+    target_column='price',
+    feature_columns=None,
+    transform_target_func=None,
+    inv_transform_pred=None,
+    metrics=None,
+    print_metrics=False,
+    round_digits=4
+):
     """
-    Evaluate model performance using specified metrics.
+    prepara datos de prueba normalizando características y transformando la variable objetivo, 
+    luego evalúa un modelo.
     
-    Parameters:
+    parámetros:
     -----------
-    model : Model
-        Trained model instance
-    X_test : pd.DataFrame
-        Test features
-    y_test : pd.Series
-        Test target values
+    df_test : pd.DataFrame
+        datos de prueba con características y variable objetivo
+    model : object
+        modelo entrenado para evaluar
+    normalization_params : dict, default=None
+        diccionario con parámetros de normalización 'mean' y 'std' del entrenamiento
+        si es None, no se aplica normalización
+    target_column : str, default='price'
+        nombre de la columna objetivo en df_test
+    feature_columns : list, default=None
+        lista de columnas de características a usar. si es None, usa todas las columnas excepto la objetivo
+    transform_target_func : callable, default=None
+        función para transformar la variable objetivo (ej., np.log)
+        si es None, no se aplica transformación
+    inv_transform_pred : callable, default=None
+        función para transformar predicciones a escala original (ej., np.exp)
     metrics : list, default=None
-        List of metric functions to calculate
+        lista de funciones de métrica para calcular
+    print_metrics : bool, default=False
+        indica si se imprimen los resultados de las métricas formateados
+    round_digits : int, default=4
+        número de decimales para redondear métricas al imprimir
         
-    Returns:
+    retorna:
     --------
-    dict
-        Dictionary of metric values
+    tuple
+        (metrics_dict, X_test, y_test, y_test_transformed)
+        - metrics_dict: diccionario con métricas de evaluación
+        - X_test: matriz de características procesada
+        - y_test: valores originales de la variable objetivo
+        - y_test_transformed: valores transformados de la variable objetivo (si se aplicó transformación)
     """
-    if metrics is None:
-        metrics = [mse_score, r2_score]
-        
-
+    if feature_columns is None:
+        feature_columns = [col for col in df_test.columns if col != target_column]
     
-    y_pred_test = model.predict(X_test)
-
-    if inv_transform_pred is not None:
-        y_pred_test = inv_transform_pred(y_pred_test)
-        y_test = inv_transform_pred(y_test)
-
-    results = {}
-    for metric in metrics:
-        results[metric.__name__.lower()] = metric(y_pred_test, y_test)
-            
-    return results
-
+    X_test = df_test[feature_columns].copy() if feature_columns else df_test.drop(target_column, axis=1)
+    y_test = df_test[target_column].copy()
+    
+    if normalization_params is not None:
+        for col in X_test.columns:
+            if col in normalization_params['mean'] and col in normalization_params['std']:
+                X_test[col] = (X_test[col] - normalization_params['mean'][col]) / normalization_params['std'][col]
+    
+    if transform_target_func is not None:
+        y_test_transformed = transform_target_func(y_test)
+    else:
+        y_test_transformed = y_test
+    
+    metrics_dict = evaluate_model(model, X_test, y_test_transformed, metrics, inv_transform_pred)
+    
+    if print_metrics:
+        for metric_name, value in metrics_dict.items():
+            print(f"{metric_name.upper()}: {value:.{round_digits}f}")
+    
+    return metrics_dict, X_test, y_test, y_test_transformed
 
 def train_and_evaluate_model(
     target_column, 
@@ -161,13 +196,47 @@ def train_and_evaluate_model(
 
 
 def get_weights_and_metrics(X, y, lambdas, model_class, test_size=0.2, random_state=42, normalize=True, regularization='l2',
-                            method='pseudo_inverse', inv_transform_pred=None):
+                            method='pseudo_inverse', inv_transform_pred=None, metrics=None):
+    """
+    Get model weights and performance metrics for different lambda values.
+    
+    Parameters:
+    -----------
+    X : pd.DataFrame
+        Feature matrix
+    y : pd.Series
+        Target variable
+    lambdas : array-like
+        Values of regularization parameter to test
+    model_class : class
+        Model class to use
+    test_size : float, default=0.2
+        Proportion of data to use for testing
+    random_state : int, default=42
+        Random seed for reproducibility
+    normalize : bool, default=True
+        Whether to normalize features
+    regularization : str, default='l2'
+        Type of regularization to use (l1 or l2)
+    method : str, default='pseudo_inverse'
+        Method to use for solving linear system
+    inv_transform_pred : callable, default=None
+        Function to transform predictions back to original scale
+    metrics : list, default=None
+        List of metric functions to calculate
+        
+    Returns:
+    --------
+    tuple
+        (weights, mse_scores, r2_scores) arrays
+    """
+    if metrics is None:
+        metrics = [mse_score, r2_score]
 
     X_train, X_test, y_train, y_test = split_test_train(X, y, test_size=test_size, random_state=random_state, normalize=normalize)
 
     weights = []
-    mse_scores = []
-    r2_scores = []
+    metric_scores = {metric.__name__.lower(): [] for metric in metrics}
 
     for lambda_ in lambdas:
         model = model_class()
@@ -176,18 +245,17 @@ def get_weights_and_metrics(X, y, lambdas, model_class, test_size=0.2, random_st
         coefs = model.get_weights()
         weights.append(coefs)
 
-        # Obtener predicciones del modelo
-        y_pred = model.predict(X_test)
+        # Get model predictions and compute metrics
+        score = evaluate_model(model, X_test, y_test, metrics, inv_transform_pred)
         
-        if inv_transform_pred is not None:
-            y_pred = inv_transform_pred(y_pred)
-            y_test = inv_transform_pred(y_test)
-
-        # Calcular métricas pasando primero y_pred, luego y_test
-        mse = mse_score(y_pred, y_test)
-        r2 = r2_score(y_pred, y_test)
-        mse_scores.append(mse)
-        r2_scores.append(r2)
+        # Store metric scores
+        for key, value in score.items():
+            metric_scores[key].append(value)
 
     weights = np.array(weights)
+    
+    # Extract specific metric scores for backward compatibility
+    mse_scores = metric_scores.get('mse_score', metric_scores.get('mse', []))
+    r2_scores = metric_scores.get('r2_score', metric_scores.get('r2', []))
+    
     return weights, mse_scores, r2_scores

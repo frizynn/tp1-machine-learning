@@ -5,6 +5,44 @@ from typing import Dict, List, Union, Callable, Tuple
 from models.regression.base import Model
 
 
+def evaluate_model(model, X_test, y_test, metrics=None, inv_transform_pred=None):
+    """
+    evalúa el rendimiento del modelo usando métricas específicas.
+    
+    parámetros:
+    -----------
+    model : Model
+        instancia del modelo entrenado
+    X_test : pd.DataFrame
+        características de prueba
+    y_test : pd.Series
+        valores objetivo de prueba
+    metrics : list, default=None
+        lista de funciones de métrica para calcular
+    inv_transform_pred : callable, default=None
+        función para transformar predicciones a escala original
+        
+    retorna:
+    --------
+    dict
+        diccionario con valores de las métricas
+    """
+    if metrics is None:
+        metrics = [mse_score, r2_score]
+    
+    y_pred_test = model.predict(X_test)
+
+    if inv_transform_pred is not None:
+        y_pred_test = inv_transform_pred(y_pred_test)
+        y_test = inv_transform_pred(y_test)
+
+    results = {}
+    for metric in metrics:
+        results[metric.__name__.lower()] = metric(y_pred_test, y_test)
+            
+    return results
+
+
 def preprocess_data(df, save_path=None):
     """
     Preprocesa datos inmobiliarios convirtiendo unidades de sqft a m2.
@@ -323,8 +361,6 @@ def normalize_data(X_train: pd.DataFrame, X_test: pd.DataFrame) -> tuple:
     X_train_normalized = _apply_normalization(X_train, params)
     X_test_normalized = _apply_normalization(X_test, params)
     return X_train_normalized, X_test_normalized, params
-
-
 
 
 def _handle_feature_engineering(df: pd.DataFrame, operations: List[Dict]) -> Tuple[pd.DataFrame, Dict]:
@@ -664,7 +700,6 @@ def cross_validate_lambda(X, y, lambdas, model_class: Model, n_splits=5,
             else:
                 model.fit(X_train, y_train, regularization=regularization)
             
-            from utils.model import evaluate_model
             score = evaluate_model(model, X_val, y_val, metrics, inv_transform_pred)
            
             for key, value in score.items():

@@ -4,6 +4,38 @@ import seaborn as sns
 import pandas as pd
 
 
+def _save_and_show_figure(fig, save_path, filename, show_figures, dpi=300):
+    """
+    Helper function to handle figure saving and displaying
+    
+    Parameters:
+    -----------
+    fig : matplotlib.figure.Figure
+        Figure to save/show
+    save_path : str or None
+        Directory path to save the figure
+    filename : str
+        Filename to use when saving
+    show_figures : bool
+        Whether to display the figure
+    dpi : int
+        Resolution for saved figure
+    
+    Returns:
+    --------
+    matplotlib.figure.Figure
+        The input figure
+    """
+    if save_path:
+        plt.savefig(f"{save_path}/{filename}", dpi=dpi, bbox_inches='tight')
+    
+    if show_figures:
+        plt.show()
+    else:
+        plt.close()
+    
+    return fig
+
 
 def visualize_regression_results(y_true, y_pred, transform_func=None, fig_size=(10, 5), titles=None,
                                  save_path=None, show_figures=True, fit_degree=1):
@@ -138,11 +170,7 @@ def _create_scatter_plot(y_true, y_pred, labels, titles, fig_size, save_path, sh
     plt.legend()
     plt.grid(True, alpha=0.3, linestyle='--')
     
-    if save_path:
-        plt.savefig(f"{save_path}/scatter_plot.png", dpi=300, bbox_inches='tight')
-    plt.show() if show_figures else plt.close()
-    
-    return fig_scatter
+    return _save_and_show_figure(fig_scatter, save_path, "scatter_plot.png", show_figures)
 
 
 def _create_residuals_plot(y_pred, residuals, labels, titles, fig_size, save_path, show_figures):
@@ -183,11 +211,7 @@ def _create_residuals_plot(y_pred, residuals, labels, titles, fig_size, save_pat
     plt.legend()
     plt.grid(True, alpha=0.3, linestyle='--')
     
-    if save_path:
-        plt.savefig(f"{save_path}/residuals_plot.png", dpi=300, bbox_inches='tight')
-    plt.show() if show_figures else plt.close()
-    
-    return fig_residuals
+    return _save_and_show_figure(fig_residuals, save_path, "residuals_plot.png", show_figures)
 
 
 def _create_distribution_plot(residuals, labels, titles, fig_size, save_path, show_figures):
@@ -219,6 +243,7 @@ def _create_distribution_plot(residuals, labels, titles, fig_size, save_path, sh
     sns.histplot(residuals, kde=True, stat="density", label="Distribución")
     
     plt.xlabel(labels["residuals"])
+    plt.ylabel("Frecuencia")
     plt.title(titles["distribution"])
     plt.grid(True, alpha=0.3, linestyle='--')
     
@@ -231,11 +256,7 @@ def _create_distribution_plot(residuals, labels, titles, fig_size, save_path, sh
     plt.plot(x, normal_pdf, 'r-', label="Distribución normal")
     plt.legend()
     
-    if save_path:
-        plt.savefig(f"{save_path}/residuals_distribution.png", dpi=300, bbox_inches='tight')
-    plt.show() if show_figures else plt.close()
-    
-    return fig_dist
+    return _save_and_show_figure(fig_dist, save_path, "residuals_distribution.png", show_figures)
 
 
 def _create_qq_plot(residuals, titles, fig_size, save_path, show_figures):
@@ -306,11 +327,69 @@ def _create_qq_plot(residuals, titles, fig_size, save_path, show_figures):
     plt.legend()
     plt.grid(True, alpha=0.3, linestyle='--')
     
-    if save_path:
-        plt.savefig(f"{save_path}/qq_plot.png", dpi=300, bbox_inches='tight')
-    plt.show() if show_figures else plt.close()
+    return _save_and_show_figure(fig_qq, save_path, "qq_plot.png", show_figures)
+
+
+def _setup_plot_with_optimal_value(lambdas, metric_scores, metric_name, is_minimize=None, optimal_lambda=None, optimal_metric=None, ax=None):
+    """
+    Helper function to setup a plot with an optimal value marker
     
-    return fig_qq
+    Parameters:
+    -----------
+    lambdas : array-like
+        Lambda values
+    metric_scores : array-like
+        Scores for each lambda
+    metric_name : str
+        Name of the metric
+    is_minimize : bool, optional
+        Whether the metric should be minimized (if None, inferred from metric name)
+    optimal_lambda : float, optional
+        Pre-computed optimal lambda value
+    optimal_metric : float, optional
+        Pre-computed optimal metric value
+    ax : matplotlib.axes.Axes, optional
+        Axes to plot on
+    
+    Returns:
+    --------
+    tuple
+        (optimal_lambda, optimal_metric, ax)
+    """
+    if ax is None:
+        _, ax = plt.subplots(figsize=(10, 6))
+    
+    # Plot the line
+    sns.lineplot(x=lambdas, y=metric_scores, ax=ax, color='royalblue', label=metric_name)
+    
+    # Determine if we're minimizing or maximizing
+    if is_minimize is None:
+        is_minimize = any(term in metric_name.lower() for term in ['error', 'loss', 'mse', 'mae'])
+    
+    # Find optimal value if not provided
+    if optimal_lambda is None or optimal_metric is None:
+        if is_minimize:
+            optimal_idx = np.argmin(metric_scores)
+            optimal_type = "Min"
+        else:
+            optimal_idx = np.argmax(metric_scores)
+            optimal_type = "Max"
+        
+        optimal_metric = metric_scores[optimal_idx]
+        optimal_lambda = lambdas[optimal_idx]
+    else:
+        optimal_type = "Min" if is_minimize else "Max"
+    
+    # Mark the optimal point
+    ax.scatter([optimal_lambda], [optimal_metric], color='red', s=100, zorder=5,
+               label=f'{optimal_type} {metric_name}: {optimal_metric:.4f} (λ = {optimal_lambda:.4f})')
+    ax.axvline(x=optimal_lambda, color='red', linestyle='--', alpha=0.7)
+    
+    # Add text with optimal values
+    ax.text(0.02, 0.98, f'λ óptimo: {optimal_lambda:.4f}\n{metric_name} {optimal_type.lower()}: {optimal_metric:.4f}',
+            transform=ax.transAxes, bbox=dict(facecolor='white', alpha=0.8), verticalalignment='top')
+    
+    return optimal_lambda, optimal_metric, ax
 
 
 def plot_weights_vs_lambda(lambdas, weights, feature_names, custom_titles=None):
@@ -389,30 +468,9 @@ def plot_metric_vs_lambda(ax, lambdas, metric_scores, metric_name="MSE", marker=
     tuple
         (optimal_lambda, optimal_metric) con el λ y la métrica óptimos.
     """
-    # graficar la línea de la métrica
-    sns.lineplot(x=lambdas, y=metric_scores, ax=ax, color='royalblue', label=metric_name, marker=marker)
-    
-    if metric_name.upper() == "R2":
-        # para R² se busca el máximo
-        optimal_idx = np.argmax(metric_scores)
-        optimal_metric = metric_scores[optimal_idx]
-        optimal_lambda = lambdas[optimal_idx]
-        optimal_type = "Max"
-    else:
-        # para MSE se busca el mínimo
-        optimal_idx = np.argmin(metric_scores)
-        optimal_metric = metric_scores[optimal_idx]
-        optimal_lambda = lambdas[optimal_idx]
-        optimal_type = "Min"
-    
-    # marcar el punto óptimo con un punto y una línea vertical discontinua
-    ax.scatter([optimal_lambda], [optimal_metric], color='red', s=100, zorder=5,
-               label=f'{optimal_type} {metric_name}: {optimal_metric:.4f} (λ = {optimal_lambda:.4f})')
-    ax.axvline(x=optimal_lambda, color='red', linestyle='--', alpha=0.7)
-    
-    # agregar texto con los valores óptimos en la esquina superior izquierda
-    ax.text(0.02, 0.98, f'λ óptimo: {optimal_lambda:.4f}\n{metric_name} {optimal_type.lower()}: {optimal_metric:.4f}',
-            transform=ax.transAxes, bbox=dict(facecolor='white', alpha=0.8), verticalalignment='top')
+    is_minimize = metric_name.upper() != "R2"
+    optimal_lambda, optimal_metric, _ = _setup_plot_with_optimal_value(
+        lambdas, metric_scores, metric_name, is_minimize, ax=ax)
     
     ax.set_xlabel('Regularization strength (λ)')
     ax.set_ylabel(metric_name)
@@ -420,7 +478,6 @@ def plot_metric_vs_lambda(ax, lambdas, metric_scores, metric_name="MSE", marker=
     ax.grid(True)
     
     return optimal_lambda, optimal_metric
-
 
 
 def plot_performance_metrics(lambdas, mse_scores, r2_scores):
@@ -495,39 +552,31 @@ def plot_cv_results(lambdas, cv_metrics_scores, optimal_lambda=None, min_cv_metr
         metrics_values = cv_metrics_scores
     
     # calcular el valor óptimo de λ y la métrica correspondiente si no se proporcionan
-    if optimal_lambda is None or min_cv_metrics is None:
-        # se busca el índice óptimo dependiendo de si se minimiza o maximiza la métrica
-        if any(term in metric_name for term in ['error', 'loss', 'mse', 'mae']):
-            idx_optimal = np.argmin(metrics_values)
-        else:
-            idx_optimal = np.argmax(metrics_values)
-        
-        optimal_lambda_value = lambdas[idx_optimal]
-        optimal_metric_value = metrics_values[idx_optimal]
+    if isinstance(optimal_lambda, dict) and metric_name in optimal_lambda:
+        optimal_lambda_value = optimal_lambda[metric_name]
     else:
-        # usar los valores proporcionados
-        if isinstance(optimal_lambda, dict):
-            optimal_lambda_value = optimal_lambda.get(metric_name, lambdas[0])
-        else:
-            optimal_lambda_value = optimal_lambda
-            
-        if isinstance(min_cv_metrics, dict):
-            optimal_metric_value = min_cv_metrics.get(metric_name, metrics_values[0])
-        else:
-            optimal_metric_value = min_cv_metrics
+        optimal_lambda_value = optimal_lambda
+        
+    if isinstance(min_cv_metrics, dict) and metric_name in min_cv_metrics:
+        optimal_metric_value = min_cv_metrics[metric_name]
+    else:
+        optimal_metric_value = min_cv_metrics
     
-    # determinar si se está minimizando o maximizando la métrica
     is_minimize = any(term in metric_name.lower() for term in ['error', 'loss', 'mse', 'mae'])
     
-    # crear un DataFrame para graficar con seaborn
+    # Create a DataFrame for seaborn
     data = pd.DataFrame({'lambda': lambdas, metric_name.upper(): metrics_values})
-    sns.lineplot(data=data, x='lambda', y=metric_name.upper(), ax=ax, label=f'{metric_name.upper()} promedio')
     
-    # marcar el lambda óptimo con un punto y línea vertical discontinua
-    optimize_type = "Min" if is_minimize else "Max"
-    ax.scatter([optimal_lambda_value], [optimal_metric_value], color='red', s=100, zorder=5,
-               label=f'{optimize_type} {metric_name.upper()}: {optimal_metric_value:.4f} (λ = {optimal_lambda_value:.4f})')
-    ax.axvline(x=optimal_lambda_value, color='red', linestyle='--', alpha=0.7)
+    # Setup the plot
+    _, _, ax = _setup_plot_with_optimal_value(
+        lambdas, 
+        metrics_values, 
+        metric_name.upper(), 
+        is_minimize, 
+        optimal_lambda_value, 
+        optimal_metric_value, 
+        ax
+    )
     
     ax.set_xlabel('Intensidad de regularización (λ)', fontsize=12)
     ax.set_ylabel(f'{metric_name.upper()} - Validación Cruzada', fontsize=12)
