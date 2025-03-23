@@ -1,9 +1,5 @@
-from enum import Enum
-from typing import Union, Optional, Dict
-from .base import Model, FitMethod
+
 from .polynomial_regressor import PolynomialRegressor
-import pandas as pd
-import numpy as np
 
 
 class LinearRegressor(PolynomialRegressor):

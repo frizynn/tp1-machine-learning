@@ -83,6 +83,7 @@ def prepare_and_evaluate_test_data(
             print(f"{metric_name.upper()}: {value:.{round_digits}f}")
     
     return metrics_dict, X_test, y_test, y_test_transformed
+
 def train_and_evaluate_model(
     target_column, 
     df=None,
@@ -171,7 +172,7 @@ def train_and_evaluate_model(
     y_pred_test = model.predict(X_test)
     
     # evaluar modelo
-    metrics_results = evaluate_model(model, X_test, y_test, metrics, inv_transform_pred)
+    metrics_results = evaluate_model(model, X_test, y_test, metrics, inv_transform_pred, y_pred_test)
 
     if verbose:
         model.print_coefficients()

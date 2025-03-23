@@ -141,15 +141,15 @@ class LossFunction(ABC):
         float
             Valor de la función de pérdida regularizada
         """
-        # Obtener la función de pérdida base
+        # obtener la función de pérdida base
         base_loss_func = getattr(LossFunction, loss_name, LossFunction.mse)
         base_loss = base_loss_func(y_true, y_pred)
         
-        # Si no hay regularización, devolver la pérdida base
+        # si no hay regularización, devolver la pérdida base
         if reg_type is None or alpha == 0:
             return base_loss
         
-        # Calcular la penalización según el tipo de regularización
+        # calcular la penalización según el tipo de regularización
         if reg_type == 'l2':
             penalty = LossFunction.ridge_penalty(coeffs, alpha, exclude_intercept)
         elif reg_type == 'l1':
@@ -195,7 +195,7 @@ class LossFunction(ABC):
         y_pred = X @ coeffs
         error = y_pred - y_true
         
-        # Calcular el gradiente base según la función de pérdida
+        # calcular el gradiente base según la función de pérdida
         if loss_name == 'mse':
             # gradiente del MSE: (2/m) * X^T * (X*coeffs - y)
             gradient = (2/m) * (X.T @ error)
@@ -214,14 +214,14 @@ class LossFunction(ABC):
         else:
             raise ValueError(f"Función de pérdida no reconocida: {loss_name}")
             
-        # Si no hay regularización, devolver el gradiente base
+        # si no hay regularización, devolver el gradiente base
         if reg_type is None or alpha == 0:
             return gradient
         
-        # Calcular el gradiente del término de regularización
+        # calcular el gradiente del término de regularización
         reg_gradient = np.zeros_like(coeffs)
         
-        # Determinar qué coeficientes penalizar
+        # determinar qué coeficientes penalizar
         start_idx = 1 if exclude_intercept else 0
         
         if reg_type == 'l2':

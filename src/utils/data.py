@@ -1,11 +1,11 @@
 import pandas as pd
 import numpy as np
 from models.clustering.kmeans import KMeans
-from typing import Dict, List, Union, Callable, Tuple
+from typing import Dict, List, Union, Callable, Tuple, Optional
 from models.regression.base import Model
 
 
-def evaluate_model(model, X_test, y_test, metrics=None, inv_transform_pred=None):
+def evaluate_model(model, X_test, y_test, metrics=None, inv_transform_pred=None, y_pred: Optional[pd.Series] = None):
     """
     evalúa el rendimiento del modelo usando métricas específicas.
     
@@ -30,8 +30,8 @@ def evaluate_model(model, X_test, y_test, metrics=None, inv_transform_pred=None)
     if metrics is None:
         metrics = [mse_score, r2_score]
     
-    y_pred_test = model.predict(X_test)
-
+    y_pred_test = model.predict(X_test) if y_pred is None else y_pred
+    
     if inv_transform_pred is not None:
         y_pred_test = inv_transform_pred(y_pred_test)
         y_test = inv_transform_pred(y_test)

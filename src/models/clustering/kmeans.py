@@ -21,8 +21,20 @@ class KMeans(ClusteringModel):
 
     def fit(self, X):
         """
-        Ajusta el modelo K-Means a los datos X (array de shape [n_muestras, n_features]).
+        Entrena el modelo K-Means.
+        
+        Parámetros:
+        -----------
+        X : array-like de shape (n_muestras, n_features)
+            Conjunto de datos a ajustar.
+
+        retorna:
+        --------
+        self : KMeans
+            El modelo ajustado.
         """
+        
+
         np.random.seed(self.random_state)
 
         random_indices = np.random.choice(len(X), size=self.n_clusters, replace=False)
@@ -47,9 +59,18 @@ class KMeans(ClusteringModel):
 
     def predict(self, X):
         """
-        Dado un conjunto de datos X, asigna cada muestra al cluster cuyo centroide
-        esté más cercano.
+        Predice las etiquetas de cluster para un conjunto de datos X.
+        Parámetros:
+        ----------
+        X : array-like de shape (n_muestras, n_features)
+            Conjunto de datos a predecir.
+
+        retorna:
+        --------
+        labels : array-like de shape (n_muestras,)
+            Etiquetas de cluster para cada muestra.
         """
+        
         if self.centroids_ is None:
             raise ValueError("El modelo no ha sido ajustado aún. Ejecuta fit() primero.")
         return np.array([np.argmin(np.sum((x - self.centroids_) ** 2, axis=1)) for x in X])
