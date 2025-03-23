@@ -6,25 +6,25 @@ import pandas as pd
 
 def _save_and_show_figure(fig, save_path, filename, show_figures, dpi=300):
     """
-    Helper function to handle figure saving and displaying
+    Función auxiliar para manejar el guardado y visualización de figuras
     
-    Parameters:
+    Parámetros:
     -----------
     fig : matplotlib.figure.Figure
-        Figure to save/show
-    save_path : str or None
-        Directory path to save the figure
+        Figura para guardar/mostrar
+    save_path : str o None
+        Ruta del directorio para guardar la figura
     filename : str
-        Filename to use when saving
+        Nombre de archivo a utilizar al guardar
     show_figures : bool
-        Whether to display the figure
+        Indica si se debe mostrar la figura
     dpi : int
-        Resolution for saved figure
+        Resolución para la figura guardada
     
-    Returns:
+    Retorna:
     --------
     matplotlib.figure.Figure
-        The input figure
+        La figura de entrada
     """
     if save_path:
         plt.savefig(f"{save_path}/{filename}", dpi=dpi, bbox_inches='tight')
@@ -332,26 +332,26 @@ def _create_qq_plot(residuals, titles, fig_size, save_path, show_figures):
 
 def _setup_plot_with_optimal_value(lambdas, metric_scores, metric_name, is_minimize=None, optimal_lambda=None, optimal_metric=None, ax=None):
     """
-    Helper function to setup a plot with an optimal value marker
+    función auxiliar para configurar un gráfico con un marcador de valor óptimo
     
-    Parameters:
+    parámetros:
     -----------
     lambdas : array-like
-        Lambda values
+        valores de lambda
     metric_scores : array-like
-        Scores for each lambda
+        puntuaciones para cada lambda
     metric_name : str
-        Name of the metric
-    is_minimize : bool, optional
-        Whether the metric should be minimized (if None, inferred from metric name)
-    optimal_lambda : float, optional
-        Pre-computed optimal lambda value
-    optimal_metric : float, optional
-        Pre-computed optimal metric value
-    ax : matplotlib.axes.Axes, optional
-        Axes to plot on
+        nombre de la métrica
+    is_minimize : bool, opcional
+        si la métrica debe ser minimizada (si es None, se infiere del nombre de la métrica)
+    optimal_lambda : float, opcional
+        valor óptimo de lambda pre-calculado
+    optimal_metric : float, opcional
+        valor óptimo de la métrica pre-calculado
+    ax : matplotlib.axes.Axes, opcional
+        ejes sobre los que graficar
     
-    Returns:
+    retorna:
     --------
     tuple
         (optimal_lambda, optimal_metric, ax)
@@ -359,14 +359,14 @@ def _setup_plot_with_optimal_value(lambdas, metric_scores, metric_name, is_minim
     if ax is None:
         _, ax = plt.subplots(figsize=(10, 6))
     
-    # Plot the line
+    # grafica la línea
     sns.lineplot(x=lambdas, y=metric_scores, ax=ax, color='royalblue', label=metric_name)
     
-    # Determine if we're minimizing or maximizing
+    # determina si estamos minimizando o maximizando
     if is_minimize is None:
         is_minimize = any(term in metric_name.lower() for term in ['error', 'loss', 'mse', 'mae'])
     
-    # Find optimal value if not provided
+    # encuentra el valor óptimo si no se proporciona
     if optimal_lambda is None or optimal_metric is None:
         if is_minimize:
             optimal_idx = np.argmin(metric_scores)
@@ -380,12 +380,11 @@ def _setup_plot_with_optimal_value(lambdas, metric_scores, metric_name, is_minim
     else:
         optimal_type = "Min" if is_minimize else "Max"
     
-    # Mark the optimal point
+    # marca el punto óptimo
     ax.scatter([optimal_lambda], [optimal_metric], color='red', s=100, zorder=5,
                label=f'{optimal_type} {metric_name}: {optimal_metric:.4f} (λ = {optimal_lambda:.4f})')
     ax.axvline(x=optimal_lambda, color='red', linestyle='--', alpha=0.7)
     
-    # Add text with optimal values
     ax.text(0.02, 0.98, f'λ óptimo: {optimal_lambda:.4f}\n{metric_name} {optimal_type.lower()}: {optimal_metric:.4f}',
             transform=ax.transAxes, bbox=dict(facecolor='white', alpha=0.8), verticalalignment='top')
     
@@ -472,7 +471,7 @@ def plot_metric_vs_lambda(ax, lambdas, metric_scores, metric_name="MSE", marker=
     optimal_lambda, optimal_metric, _ = _setup_plot_with_optimal_value(
         lambdas, metric_scores, metric_name, is_minimize, ax=ax)
     
-    ax.set_xlabel('Regularization strength (λ)')
+    ax.set_xlabel('Intensidad de regularización (λ)')
     ax.set_ylabel(metric_name)
     ax.set_title(f'{metric_name} vs λ')
     ax.grid(True)
@@ -504,7 +503,7 @@ def plot_performance_metrics(lambdas, mse_scores, r2_scores):
     max_lambda, max_r2 = plot_metric_vs_lambda(ax2, lambdas, r2_scores, metric_name="R2", marker=None)
     
     plt.tight_layout()
-    plt.suptitle('Métricas de rendimiento vs Regularization Strength', y=1.05, fontsize=16)
+    plt.suptitle('Métricas de rendimiento vs Intensidad de regularización', y=1.05, fontsize=16)
     plt.show()
     
     return min_lambda, min_mse, max_lambda, max_r2
@@ -564,10 +563,7 @@ def plot_cv_results(lambdas, cv_metrics_scores, optimal_lambda=None, min_cv_metr
     
     is_minimize = any(term in metric_name.lower() for term in ['error', 'loss', 'mse', 'mae'])
     
-    # Create a DataFrame for seaborn
-    data = pd.DataFrame({'lambda': lambdas, metric_name.upper(): metrics_values})
     
-    # Setup the plot
     _, _, ax = _setup_plot_with_optimal_value(
         lambdas, 
         metrics_values, 

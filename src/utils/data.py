@@ -299,7 +299,6 @@ def _calculate_normalization_params(data: pd.DataFrame) -> Dict:
     dict
         Diccionario con claves 'mean' y 'std'.
     """
-    # identifica columnas binarias (solo contienen 0 y 1)
     binary_cols = data.apply(lambda x: set(x.unique()) <= {0, 1})
     # selecciona solo las columnas que no son binarias
     non_binary_data = data.loc[:, ~binary_cols]
