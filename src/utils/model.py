@@ -1,21 +1,14 @@
 import numpy as np
 
 
-
-
 from .data import (
-    split_test_train_with_label,
+    split_test_train,
     load_and_prepare_data,
     normalize_data,
-    print_model_evaluation,
     mse_score,
     r2_score
 
 )
-from models.regression.base import (
-    Model,
-)
-
 
 
 def evaluate_model(model, X_test, y_test, metrics=None, inv_transform_pred=None):
@@ -128,7 +121,7 @@ def train_and_evaluate_model(
     )
     
     # Split data
-    X_train, X_test, y_train, y_test = split_test_train_with_label(
+    X_train, X_test, y_train, y_test = split_test_train(
         X, y, test_size=test_size, random_state=random_state
     )
     
@@ -147,7 +140,7 @@ def train_and_evaluate_model(
     metrics_results = evaluate_model(model, X_test, y_test, metrics, inv_transform_pred)
 
     if verbose:
-        print_model_evaluation(model, feature_columns, metrics_results)
+        model.print_coefficients()
     
     # Prepare results
     results = {
@@ -170,7 +163,7 @@ def train_and_evaluate_model(
 def get_weights_and_metrics(X, y, lambdas, model_class, test_size=0.2, random_state=42, normalize=True, regularization='l2',
                             method='pseudo_inverse', inv_transform_pred=None):
 
-    X_train, X_test, y_train, y_test = split_test_train_with_label(X, y, test_size=test_size, random_state=random_state, normalize=normalize)
+    X_train, X_test, y_train, y_test = split_test_train(X, y, test_size=test_size, random_state=random_state, normalize=normalize)
 
     weights = []
     mse_scores = []

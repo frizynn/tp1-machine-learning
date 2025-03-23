@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from enum import Enum
-from typing import Union, Optional, Dict
+from typing import Dict
 
 
 class FitMethod(Enum):
@@ -101,29 +101,4 @@ class Model:
         """
         return self._training_info.copy()
     
-    @staticmethod
-    # TODO hacer clases de loss
-    def loss_mse(y_true, y_pred):
-        
-        y_true = np.asarray(y_true)
-        y_pred = np.asarray(y_pred)
-        
-        error = y_pred - y_true
-        
-        mse = np.mean(error**2)
-        
-        return mse
-    
-    @staticmethod
-    def loss_mse_gradient(X, y_true, coeffs):
-       
-        m = X.shape[0]  # número de muestras
-        y_pred = X @ coeffs
-        error = y_pred - y_true
-        
-        # gradiente del MSE es (2/m) * X^T * (X*w - y)
-        gradient = (2/m) * (X.T @ error)
-        
-        return gradient
-        
-    
+  

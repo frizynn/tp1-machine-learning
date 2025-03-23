@@ -110,30 +110,6 @@ class LossFunction(ABC):
             
         return alpha * penalty
     
-    @staticmethod
-    def elastic_net_penalty(coeffs, alpha=1.0, l1_ratio=0.5, exclude_intercept=True):
-        """
-        Calcula la penalización de ElasticNet (combinación de L1 y L2).
-        
-        Parameters
-        ----------
-        coeffs : np.ndarray
-            Coeficientes del modelo
-        alpha : float
-            Parámetro de regularización global
-        l1_ratio : float
-            Proporción de la penalización L1 (0 = Ridge, 1 = Lasso)
-        exclude_intercept : bool
-            Si es True, no penaliza el intercepto (primer coeficiente)
-            
-        Returns
-        -------
-        float
-            Valor de la penalización ElasticNet
-        """
-        lasso = LossFunction.lasso_penalty(coeffs, alpha * l1_ratio, exclude_intercept)
-        ridge = LossFunction.ridge_penalty(coeffs, alpha * (1 - l1_ratio), exclude_intercept)
-        return lasso + ridge
     
     @staticmethod
     def regularized_loss(loss_name, y_true, y_pred, coeffs, 

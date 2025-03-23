@@ -1,5 +1,5 @@
-from enum import Enum
-from typing import Union, Optional, Dict
+
+from typing import Union, Optional
 from .base import Model, FitMethod
 import pandas as pd
 import numpy as np
@@ -191,23 +191,7 @@ class PolynomialRegressor(Model):
             "alpha": alpha,
             "exclude_intercept": exclude_intercept,
         }
-        
-        # # Calculate metrics only if requested
-        # if report_metrics:
-        #     y_pred = X_np @ coeffs
-        #     metrics = {
-        #         "mse": LossFunction.mse(y_np, y_pred),
-        #         "r2": 1 - ((y_np - y_pred) ** 2).sum() / ((y_np - y_np.mean()) ** 2).sum(),
-        #         "mae": LossFunction.mae(y_np, y_pred)
-        #     }
-            
-        #     # Add regularization penalty if applicable
-        #     if alpha > 0:
-        #         ridge_penalty = LossFunction.ridge_penalty(coeffs, alpha, exclude_intercept)
-        #         metrics["reg_mse"] = metrics["mse"] + ridge_penalty
-            
-        #     training_info["metrics"] = metrics
-        
+
         self._training_info = training_info
         return self
 
@@ -337,17 +321,7 @@ class PolynomialRegressor(Model):
                 min_loss = current_loss
                 best_coeffs = coeffs.copy()
                 
-            # Calculate and store metrics if requested
-            # if report_metrics and (epoch % max(1, epochs // 10) == 0):
-            #     y_pred = X_np @ coeffs
-            #     metrics = {
-            #         "mse": LossFunction.mse(y_np, y_pred),
-            #         "r2": 1 - ((y_np - y_pred) ** 2).sum() / ((y_np - y_np.mean()) ** 2).sum(),
-            #         "mae": LossFunction.mae(y_np, y_pred)
-            #     }
-            #     history["metrics"][epoch] = metrics
-        
-        # Use best coefficients found
+       
         coeffs = best_coeffs
         self.intercept_ = coeffs[0]
         self._coef = coeffs[1:]
@@ -355,23 +329,7 @@ class PolynomialRegressor(Model):
         if self.feature_names is not None and len(self.feature_names) == len(self._coef):
             self.coef_dict = dict(zip(self.feature_names, self._coef))
         
-        # # Calculate final metrics only if requested
-        # if report_metrics:
-        #     y_pred = X_np @ coeffs
-        #     final_metrics = {
-        #         "mse": LossFunction.mse(y_np, y_pred),
-        #         "r2": 1 - ((y_np - y_pred) ** 2).sum() / ((y_np - y_np.mean()) ** 2).sum(),
-        #         "mae": LossFunction.mae(y_np, y_pred)
-        #     }
-            
-        #     # Add regularization metrics if applicable
-        #     if regularization is not None and alpha > 0:
-        #         reg_loss = LossFunction.regularized_loss(
-        #             loss, y_np, y_pred, coeffs,
-        #             regularization, alpha, l1_ratio, exclude_intercept
-        #         )
-        #         final_metrics[f"reg_{loss}"] = reg_loss
-        # else:
+    
             final_metrics = {}
 
         self._training_info = {
