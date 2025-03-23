@@ -664,18 +664,12 @@ def cross_validate_lambda(X, y, lambdas, model_class: Model, n_splits=5,
             else:
                 model.fit(X_train, y_train, regularization=regularization)
             
-            y_pred = model.predict(X_val)
-            
-            if inv_transform_pred is not None:
-                # invierte la transformación para calcular correctamente las métricas
-                y_pred = inv_transform_pred(y_pred)
-                y_val = inv_transform_pred(y_val)
-            
-            for metric in metrics:
-                # calcula la métrica y almacena el resultado para este fold
-                score = metric(y_pred, y_val)
-                fold_metrics_scores[metric.__name__.lower()].append(score)
-        
+            from utils.model import evaluate_model
+            score = evaluate_model(model, X_val, y_val, metrics, inv_transform_pred)
+           
+            for key, value in score.items():
+                fold_metrics_scores[key].append(value)
+
         # promedia las métricas sobre todos los folds para el lambda actual
         for metric in metrics:
             key = metric.__name__.lower()
