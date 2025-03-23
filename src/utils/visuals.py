@@ -360,17 +360,18 @@ def plot_performance_metrics(lambdas, mse_scores, r2_scores):
     
     return min_lambda, min_mse, max_lambda, max_r2
 
-def plot_cv_results(lambdas, cv_mse_scores, optimal_lambda, min_cv_mse, title=None, ax=None):
+def plot_cv_results(lambdas, cv_metrics_scores, optimal_lambda=None, min_cv_metrics=None, metric_name='mse', title=None, ax=None):
     """
-    Grafica la variación del MSE promedio (de validación cruzada) en función de λ utilizando seaborn.
+    Grafica la variación de métricas promedio (de validación cruzada) en función de λ utilizando seaborn.
     
     Parámetros:
       - lambdas: Secuencia de valores de λ.
-      - cv_mse_scores: MSE promedio correspondiente a cada λ.
-      - optimal_lambda: Valor de λ que minimiza el MSE.
-      - min_cv_mse: MSE mínimo obtenido.
-      - title (str, opcional): Título del gráfico.
-      - ax (matplotlib.axes.Axes, opcional): Eje sobre el cual dibujar.
+      - cv_metrics_scores: Diccionario con métricas promedio correspondientes a cada λ, o array de valores.
+      - optimal_lambda: Valor o diccionario de λ que optimiza la métrica. Si es None, se calcula automáticamente.
+      - min_cv_metrics: Métrica óptima obtenida o diccionario. Si es None, se calcula automáticamente.
+      - metric_name: Nombre de la métrica a visualizar ('mse', 'r2', etc). Por defecto 'mse'.
+      - title: Título del gráfico.
+      - ax: Eje sobre el cual dibujar.
     
     Retorna:
       - ax: Objeto matplotlib.axes.Axes con el gráfico.
@@ -380,19 +381,55 @@ def plot_cv_results(lambdas, cv_mse_scores, optimal_lambda, min_cv_mse, title=No
         ax = plt.gca()
     sns.set_style("whitegrid")
     
+    # Determinar si estamos trabajando con un diccionario o un array de métricas
+    if isinstance(cv_metrics_scores, dict):
+        metric_name = metric_name.lower()
+        if metric_name not in cv_metrics_scores:
+            available_metrics = list(cv_metrics_scores.keys())
+            raise ValueError(f"La métrica '{metric_name}' no está disponible. Métricas disponibles: {available_metrics}")
+        metrics_values = cv_metrics_scores[metric_name]
+    else:
+        metrics_values = cv_metrics_scores
+    
+    # Determinar el valor óptimo de lambda y la métrica correspondiente
+    if optimal_lambda is None or min_cv_metrics is None:
+        # Si no se proporcionan, calcularlos automáticamente
+        if any(term in metric_name for term in ['error', 'loss', 'mse', 'mae']):
+            idx_optimal = np.argmin(metrics_values)
+        else:
+            idx_optimal = np.argmax(metrics_values)
+        
+        optimal_lambda_value = lambdas[idx_optimal]
+        optimal_metric_value = metrics_values[idx_optimal]
+    else:
+        # Usar los valores proporcionados
+        if isinstance(optimal_lambda, dict):
+            optimal_lambda_value = optimal_lambda.get(metric_name, lambdas[0])
+        else:
+            optimal_lambda_value = optimal_lambda
+            
+        if isinstance(min_cv_metrics, dict):
+            optimal_metric_value = min_cv_metrics.get(metric_name, metrics_values[0])
+        else:
+            optimal_metric_value = min_cv_metrics
+    
+    # Determinar si se está minimizando o maximizando
+    is_minimize = any(term in metric_name.lower() for term in ['error', 'loss', 'mse', 'mae'])
+    
     # Crear DataFrame para graficar usando seaborn
-    data = pd.DataFrame({'lambda': lambdas, 'MSE': cv_mse_scores})
-    sns.lineplot(data=data, x='lambda', y='MSE', ax=ax, label='MSE promedio')
+    data = pd.DataFrame({'lambda': lambdas, metric_name.upper(): metrics_values})
+    sns.lineplot(data=data, x='lambda', y=metric_name.upper(), ax=ax, label=f'{metric_name.upper()} promedio')
     
     # Marcar el lambda óptimo con un punto y una línea vertical discontinua incluida en la leyenda
-    ax.scatter([optimal_lambda], [min_cv_mse], color='red', s=100, zorder=5,
-               label=f'Min MSE: {min_cv_mse:.4f} (λ = {optimal_lambda:.4f})')
-    ax.axvline(x=optimal_lambda, color='red', linestyle='--', alpha=0.7)
+    optimize_type = "Min" if is_minimize else "Max"
+    ax.scatter([optimal_lambda_value], [optimal_metric_value], color='red', s=100, zorder=5,
+               label=f'{optimize_type} {metric_name.upper()}: {optimal_metric_value:.4f} (λ = {optimal_lambda_value:.4f})')
+    ax.axvline(x=optimal_lambda_value, color='red', linestyle='--', alpha=0.7)
     
     ax.set_xlabel('Intensidad de regularización (λ)', fontsize=12)
-    ax.set_ylabel('MSE - Validación Cruzada', fontsize=12)
+    ax.set_ylabel(f'{metric_name.upper()} - Validación Cruzada', fontsize=12)
     if title is None:
-        title = 'Validación Cruzada: MSE vs λ'
+        title = f'Validación Cruzada: {metric_name.upper()} vs λ'
     ax.set_title(title, fontsize=14)
     ax.legend()
     ax.grid(True, alpha=0.3)

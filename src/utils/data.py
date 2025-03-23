@@ -712,8 +712,17 @@ def cross_validate_lambda(X, y, lambdas, model_class: Model, n_splits=5,
 
     # convierte listas a arrays de NumPy
     cv_metrics_scores = {key: np.array(scores) for key, scores in cv_metrics_scores.items()}
-    # encuentra índice óptimo para cada métrica (min para mse, max para otros como r2)
-    optimal_idx = {key: np.argmin(scores) if key == 'mse_score' else np.argmax(scores) for key, scores in cv_metrics_scores.items()}
+    
+    # encuentra índice óptimo para cada métrica (min para métricas de error como mse, max para otros como r2)
+    optimal_idx = {}
+    for key, scores in cv_metrics_scores.items():
+        # minimizar métricas que incluyen términos como 'error', 'loss', 'mse', 'mae' en su nombre
+        if any(term in key for term in ['error', 'loss', 'mse', 'mae']):
+            optimal_idx[key] = np.argmin(scores)
+        else:
+            # maximizar otras métricas como r2, accuracy, etc.
+            optimal_idx[key] = np.argmax(scores)
+    
     optimal_lambda = {key: lambdas[optimal_idx[key]] for key in cv_metrics_scores}
     min_cv_metrics = {key: cv_metrics_scores[key][optimal_idx[key]] for key in cv_metrics_scores}
     
