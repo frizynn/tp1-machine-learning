@@ -281,8 +281,8 @@ def load_and_prepare_data(
         # selects all columns except the target column
         feature_columns = [col for col in df.columns if col != target_column]
     
-    X = df[feature_columns].copy()
-    y = df[target_column].copy()
+    X = df[feature_columns]
+    y = df[target_column]
     
     return X, y, feature_columns
 

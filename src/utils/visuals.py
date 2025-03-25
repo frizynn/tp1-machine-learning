@@ -479,7 +479,7 @@ def plot_metric_vs_lambda(ax, lambdas, metric_scores, metric_name="MSE", marker=
     return optimal_lambda, optimal_metric
 
 
-def plot_performance_metrics(lambdas, mse_scores, r2_scores):
+def plot_performance_metrics(lambdas, mse_scores, r2_scores, random_state=None):
     """
     Creates subplots to visualize MSE and R² metrics as a function of λ.
     
@@ -491,19 +491,26 @@ def plot_performance_metrics(lambdas, mse_scores, r2_scores):
         MSE values.
     r2_scores : list or array
         R² values.
+    random_state : int, optional
+        Random seed for reproducibility.
+        This is passed to any function called that might require randomization.
     
     Returns:
     --------
     tuple
         (min_lambda, min_mse, max_lambda, max_r2) with the optimal values for each metric.
     """
+    # Set random seed if provided
+    if random_state is not None:
+        np.random.seed(random_state)
+        
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
     
     min_lambda, min_mse = plot_metric_vs_lambda(ax1, lambdas, mse_scores, metric_name="MSE", marker=None)
     max_lambda, max_r2 = plot_metric_vs_lambda(ax2, lambdas, r2_scores, metric_name="R2", marker=None)
     
     plt.tight_layout()
-    plt.suptitle('Performance metrics vs Regularization strength', y=1.05, fontsize=16)
+    plt.suptitle('Métricas de rendimiento vs λ', y=1.05, fontsize=16)
     plt.show()
     
     return min_lambda, min_mse, max_lambda, max_r2
@@ -574,7 +581,7 @@ def plot_cv_results(lambdas, cv_metrics_scores, optimal_lambda=None, min_cv_metr
         ax
     )
     
-    ax.set_xlabel('Regularization strength (λ)', fontsize=12)
+    ax.set_xlabel('Coeficiente de regularización (λ)', fontsize=12)
     ax.set_ylabel(f'{metric_name.upper()} - Cross Validation', fontsize=12)
     if title is None:
         title = f'Cross Validation: {metric_name.upper()} vs λ'
