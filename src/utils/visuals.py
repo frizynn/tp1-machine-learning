@@ -1,7 +1,7 @@
-import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
+import numpy as np
 import pandas as pd
+import seaborn as sns
 
 
 def _save_and_show_figure(fig, save_path, filename, show_figures, dpi=300):
@@ -81,10 +81,10 @@ def visualize_regression_results(y_true, y_pred, transform_func=None, fig_size=(
             Dictionary with all necessary titles (filling in missing ones).
         """
         default_titles = {
-            "scatter": "Real Price vs Predicted Price",
-            "residuals": "Residuals vs Predicted Price",
-            "distribution": "Residuals Distribution",
-            "qq_plot": "Normal Q-Q Plot of Residuals"
+            "scatter": "Precio real vs Precio predicho",
+            "residuals": "Residuales vs Precio predicho",
+            "distribution": "Distribución de residuales",
+            "qq_plot": "Q-Q plot de residuales"
         }
         
         if not titles:
@@ -97,7 +97,7 @@ def visualize_regression_results(y_true, y_pred, transform_func=None, fig_size=(
             return titles
 
     titles = _initialize_plot_titles(titles)
-    labels = {"actual": "Real Price", "predicted": "Predicted Price", "residuals": "Residuals"}
+    labels = {"actual": "Precio real", "predicted": "Precio predicho", "residuals": "Residuales"}
     
     if transform_func:
         y_true = transform_func(y_true)
@@ -152,7 +152,7 @@ def _create_scatter_plot(y_true, y_pred, labels, titles, fig_size, save_path, sh
     # determine min and max to plot the perfect prediction line
     min_val = min(y_true.min(), y_pred.min())
     max_val = max(y_true.max(), y_pred.max())
-    plt.plot([min_val, max_val], [min_val, max_val], 'k--', label="Perfect prediction")
+    plt.plot([min_val, max_val], [min_val, max_val], 'k--', label="Predicción perfecta")
     
     # if a degree greater than 1 is specified, fit a polynomial to the data
     if fit_degree > 1:
@@ -162,7 +162,7 @@ def _create_scatter_plot(y_true, y_pred, labels, titles, fig_size, save_path, sh
         x_curve = np.linspace(min_val, max_val, 100)  # generate points for the curve
         y_curve = p(x_curve)  # evaluate the polynomial at the generated points
         
-        plt.plot(x_curve, y_curve, 'r-', label=f"Polynomial fit (degree={fit_degree})")
+        plt.plot(x_curve, y_curve, 'r-', label=f"Ajuste polinómico (grado={fit_degree})")
     
     plt.xlabel(labels["actual"])
     plt.ylabel(labels["predicted"])
@@ -201,9 +201,9 @@ def _create_residuals_plot(y_pred, residuals, labels, titles, fig_size, save_pat
     """
     fig_residuals = plt.figure(figsize=fig_size)
     
-    sns.scatterplot(x=y_pred, y=residuals, alpha=0.7, label="Residuals")
+    sns.scatterplot(x=y_pred, y=residuals, alpha=0.7, label="Residuales")
     
-    plt.axhline(y=0, color='r', linestyle='--', label="Zero residual")  # horizontal line at zero
+    plt.axhline(y=0, color='r', linestyle='--', label="Residuales nulos")  # horizontal line at zero
     
     plt.xlabel(labels["predicted"])
     plt.ylabel(labels["residuals"])
@@ -240,10 +240,10 @@ def _create_distribution_plot(residuals, labels, titles, fig_size, save_path, sh
     """
     fig_dist = plt.figure(figsize=fig_size)
     
-    sns.histplot(residuals, kde=True, stat="density", label="Distribution")
+    sns.histplot(residuals, kde=True, stat="density", label="Distribución")
     
     plt.xlabel(labels["residuals"])
-    plt.ylabel("Frequency")
+    plt.ylabel("Frecuencia")
     plt.title(titles["distribution"])
     plt.grid(True, alpha=0.3, linestyle='--')
     
@@ -317,12 +317,12 @@ def _create_qq_plot(residuals, titles, fig_size, save_path, show_figures):
     # calculate correlation between theoretical and observed quantiles
     r = np.corrcoef(theoretical_quantiles, ordered_values)[0, 1]
     
-    plt.scatter(theoretical_quantiles, ordered_values, alpha=0.7, label="Quantiles")
+    plt.scatter(theoretical_quantiles, ordered_values, alpha=0.7, label="Cuantiles")
     plt.plot(theoretical_quantiles, slope * theoretical_quantiles + intercept, 'r--',
-             label=f"Reference line (r={r:.3f})")
+             label=f"Línea de referencia (r={r:.3f})")
     
-    plt.xlabel("Theoretical quantiles")
-    plt.ylabel("Observed quantiles")
+    plt.xlabel("Cuantiles teóricos")
+    plt.ylabel("Cuantiles observados")
     plt.title(titles["qq_plot"])
     plt.legend()
     plt.grid(True, alpha=0.3, linestyle='--')
@@ -471,7 +471,7 @@ def plot_metric_vs_lambda(ax, lambdas, metric_scores, metric_name="MSE", marker=
     optimal_lambda, optimal_metric, _ = _setup_plot_with_optimal_value(
         lambdas, metric_scores, metric_name, is_minimize, ax=ax)
     
-    ax.set_xlabel('Regularization strength (λ)')
+    ax.set_xlabel('Coeficiente de regularización (λ)')
     ax.set_ylabel(metric_name)
     ax.set_title(f'{metric_name} vs λ')
     ax.grid(True)

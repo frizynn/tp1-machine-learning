@@ -1,6 +1,7 @@
 from abc import ABC
+from typing import Callable, Dict, Optional, Union
+
 import numpy as np
-from typing import Optional, Callable, Dict, Union
 
 
 class LossFunction(ABC):

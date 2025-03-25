@@ -1,7 +1,8 @@
-import numpy as np
-import pandas as pd
 from enum import Enum
 from typing import Dict
+
+import numpy as np
+import pandas as pd
 
 
 class FitMethod(Enum):

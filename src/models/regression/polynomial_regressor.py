@@ -1,8 +1,10 @@
-from typing import Union, Optional
-from .base import Model, FitMethod
-import pandas as pd
+from typing import Optional, Union
+
 import numpy as np
+import pandas as pd
+
 from ..loss.base import LossFunction
+from .base import FitMethod, Model
 
 
 class PolynomialRegressor(Model):

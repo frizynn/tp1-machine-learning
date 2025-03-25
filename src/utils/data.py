@@ -1,7 +1,9 @@
-import pandas as pd
+from typing import Callable, Dict, List, Optional, Tuple, Union
+
 import numpy as np
+import pandas as pd
+
 from models.clustering.kmeans import KMeans
-from typing import Dict, List, Union, Callable, Tuple, Optional
 from models.regression.base import Model
 
 

@@ -1,14 +1,8 @@
 import numpy as np
 
+from .data import (evaluate_model, load_and_prepare_data, mse_score,
+                   normalize_data, r2_score, split_test_train)
 
-from .data import (
-    split_test_train,
-    load_and_prepare_data,
-    normalize_data,
-    mse_score,
-    r2_score,
-    evaluate_model
-)
 
 def prepare_and_evaluate_test_data(
     df_test, 
