@@ -6,25 +6,25 @@ import pandas as pd
 
 def _save_and_show_figure(fig, save_path, filename, show_figures, dpi=300):
     """
-    Función auxiliar para manejar el guardado y visualización de figuras
+    Helper function to handle saving and displaying figures
     
-    Parámetros:
+    Parameters:
     -----------
     fig : matplotlib.figure.Figure
-        Figura para guardar/mostrar
-    save_path : str o None
-        Ruta del directorio para guardar la figura
+        Figure to save/display
+    save_path : str or None
+        Directory path to save the figure
     filename : str
-        Nombre de archivo a utilizar al guardar
+        Filename to use when saving
     show_figures : bool
-        Indica si se debe mostrar la figura
+        Indicates whether to display the figure
     dpi : int
-        Resolución para la figura guardada
+        Resolution for the saved figure
     
-    Retorna:
+    Returns:
     --------
     matplotlib.figure.Figure
-        La figura de entrada
+        The input figure
     """
     if save_path:
         plt.savefig(f"{save_path}/{filename}", dpi=dpi, bbox_inches='tight')
@@ -40,70 +40,70 @@ def _save_and_show_figure(fig, save_path, filename, show_figures, dpi=300):
 def visualize_regression_results(y_true, y_pred, transform_func=None, fig_size=(10, 5), titles=None,
                                  save_path=None, show_figures=True, fit_degree=1):
     """
-    Crea visualizaciones completas para evaluar un modelo de regresión.
+    Creates comprehensive visualizations to evaluate a regression model.
     
-    Parámetros:
+    Parameters:
     -----------
     y_true : array-like
-        Valores reales de la variable objetivo.
+        True values of the target variable.
     y_pred : array-like
-        Valores predichos por el modelo.
-    transform_func : callable, opcional
-        Función para transformar los valores (por ejemplo, np.exp).
-    fig_size : tuple, opcional
-        Tamaño de la figura (por defecto (10, 5)).
-    titles : dict, opcional
-        Títulos personalizados para los gráficos. Claves: 'scatter', 'residuals', 'distribution', 'qq_plot'.
-    save_path : str, opcional
-        Ruta donde se guardarán las figuras; si es None, no se guardan.
-    show_figures : bool, opcional
-        Indica si se muestran las figuras.
-    fit_degree : int, opcional
-        Grado del ajuste polinómico (1=lineal, 2=cuadrático, etc.).
+        Values predicted by the model.
+    transform_func : callable, optional
+        Function to transform the values (for example, np.exp).
+    fig_size : tuple, optional
+        Size of the figure (default (10, 5)).
+    titles : dict, optional
+        Custom titles for the plots. Keys: 'scatter', 'residuals', 'distribution', 'qq_plot'.
+    save_path : str, optional
+        Path where figures will be saved; if None, they won't be saved.
+    show_figures : bool, optional
+        Indicates whether to display the figures.
+    fit_degree : int, optional
+        Degree of polynomial fit (1=linear, 2=quadratic, etc.).
     
-    Retorna:
+    Returns:
     --------
     dict
-        Diccionario con las figuras creadas.
+        Dictionary with the created figures.
     """
     def _initialize_plot_titles(titles):
         """
-        Inicializa y valida los títulos de los gráficos.
+        Initializes and validates plot titles.
         
-        Parámetros:
+        Parameters:
         -----------
         titles : dict
-            Títulos personalizados.
+            Custom titles.
         
-        Retorna:
+        Returns:
         --------
         dict
-            Diccionario con todos los títulos necesarios (completando los que falten).
+            Dictionary with all necessary titles (filling in missing ones).
         """
         default_titles = {
-            "scatter": "Precio Real vs Precio Predicho",
-            "residuals": "Residuos vs Precio Predicho",
-            "distribution": "Distribución de Residuos",
-            "qq_plot": "Normal Q-Q Plot de Residuos"
+            "scatter": "Real Price vs Predicted Price",
+            "residuals": "Residuals vs Predicted Price",
+            "distribution": "Residuals Distribution",
+            "qq_plot": "Normal Q-Q Plot of Residuals"
         }
         
         if not titles:
             return default_titles
         else:
-            # se agregan los títulos faltantes usando los valores por defecto
+            # add missing titles using default values
             for key in default_titles:
                 if key not in titles:
                     titles[key] = default_titles[key]
             return titles
 
     titles = _initialize_plot_titles(titles)
-    labels = {"actual": "Precio Real", "predicted": "Precio Predicho", "residuals": "Residuos"}
+    labels = {"actual": "Real Price", "predicted": "Predicted Price", "residuals": "Residuals"}
     
     if transform_func:
         y_true = transform_func(y_true)
         y_pred = transform_func(y_pred)
     
-    residuals = y_true - y_pred  # calcular los residuos
+    residuals = y_true - y_pred  # calculate the residuals
     
     figures = {}
     figures["scatter"] = _create_scatter_plot(y_true, y_pred, labels, titles, fig_size, save_path, show_figures, fit_degree)
@@ -116,53 +116,53 @@ def visualize_regression_results(y_true, y_pred, transform_func=None, fig_size=(
 
 def _create_scatter_plot(y_true, y_pred, labels, titles, fig_size, save_path, show_figures, fit_degree):
     """
-    Crea un gráfico de dispersión entre los valores reales y predichos, e incluye la línea de predicción perfecta.
+    Creates a scatter plot between true and predicted values, and includes the perfect prediction line.
     
-    Parámetros:
+    Parameters:
     -----------
     y_true : array-like
-        Valores reales.
+        True values.
     y_pred : array-like
-        Valores predichos.
+        Predicted values.
     labels : dict
-        Etiquetas para los ejes.
+        Labels for the axes.
     titles : dict
-        Títulos de los gráficos.
+        Plot titles.
     fig_size : tuple
-        Tamaño de la figura.
+        Figure size.
     save_path : str
-        Ruta para guardar la figura.
+        Path to save the figure.
     show_figures : bool
-        Indica si se muestra la figura.
+        Indicates whether to display the figure.
     fit_degree : int
-        Grado del ajuste polinómico; si es mayor que 1 se realiza el ajuste.
+        Degree of polynomial fit; if greater than 1, the fit is performed.
     
-    Retorna:
+    Returns:
     --------
     matplotlib.figure.Figure
-        La figura generada.
+        The generated figure.
     """
     fig_scatter = plt.figure(figsize=fig_size)
     
-    sns.scatterplot(x=y_true, y=y_pred, alpha=0.7, label="Datos")
+    sns.scatterplot(x=y_true, y=y_pred, alpha=0.7, label="Data")
     
     x_data = np.array(y_true)
     y_data = np.array(y_pred)
     
-    # determinar el mínimo y máximo para trazar la línea de predicción perfecta
+    # determine min and max to plot the perfect prediction line
     min_val = min(y_true.min(), y_pred.min())
     max_val = max(y_true.max(), y_pred.max())
-    plt.plot([min_val, max_val], [min_val, max_val], 'k--', label="Predicción perfecta")
+    plt.plot([min_val, max_val], [min_val, max_val], 'k--', label="Perfect prediction")
     
-    # si se especifica un grado mayor a 1, se ajusta un polinomio a los datos
+    # if a degree greater than 1 is specified, fit a polynomial to the data
     if fit_degree > 1:
-        coeffs = np.polyfit(x_data, y_data, fit_degree)  # obtiene los coeficientes del polinomio
-        p = np.poly1d(coeffs)  # crea una función polinómica
+        coeffs = np.polyfit(x_data, y_data, fit_degree)  # get polynomial coefficients
+        p = np.poly1d(coeffs)  # create a polynomial function
         
-        x_curve = np.linspace(min_val, max_val, 100)  # genera puntos para la curva
-        y_curve = p(x_curve)  # evalúa el polinomio en los puntos generados
+        x_curve = np.linspace(min_val, max_val, 100)  # generate points for the curve
+        y_curve = p(x_curve)  # evaluate the polynomial at the generated points
         
-        plt.plot(x_curve, y_curve, 'r-', label=f"Ajuste polinómico (grado={fit_degree})")
+        plt.plot(x_curve, y_curve, 'r-', label=f"Polynomial fit (degree={fit_degree})")
     
     plt.xlabel(labels["actual"])
     plt.ylabel(labels["predicted"])
@@ -175,35 +175,35 @@ def _create_scatter_plot(y_true, y_pred, labels, titles, fig_size, save_path, sh
 
 def _create_residuals_plot(y_pred, residuals, labels, titles, fig_size, save_path, show_figures):
     """
-    Crea un gráfico de dispersión de los residuos frente a los valores predichos.
+    Creates a scatter plot of residuals versus predicted values.
     
-    Parámetros:
+    Parameters:
     -----------
     y_pred : array-like
-        Valores predichos.
+        Predicted values.
     residuals : array-like
-        Diferencia entre los valores reales y predichos.
+        Difference between true and predicted values.
     labels : dict
-        Etiquetas para los ejes.
+        Labels for the axes.
     titles : dict
-        Títulos de los gráficos.
+        Plot titles.
     fig_size : tuple
-        Tamaño de la figura.
+        Figure size.
     save_path : str
-        Ruta para guardar la figura.
+        Path to save the figure.
     show_figures : bool
-        Indica si se muestra la figura.
+        Indicates whether to display the figure.
     
-    Retorna:
+    Returns:
     --------
     matplotlib.figure.Figure
-        La figura generada.
+        The generated figure.
     """
     fig_residuals = plt.figure(figsize=fig_size)
     
-    sns.scatterplot(x=y_pred, y=residuals, alpha=0.7, label="Residuos")
+    sns.scatterplot(x=y_pred, y=residuals, alpha=0.7, label="Residuals")
     
-    plt.axhline(y=0, color='r', linestyle='--', label="Residuo cero")  # línea horizontal en cero
+    plt.axhline(y=0, color='r', linestyle='--', label="Zero residual")  # horizontal line at zero
     
     plt.xlabel(labels["predicted"])
     plt.ylabel(labels["residuals"])
@@ -216,44 +216,44 @@ def _create_residuals_plot(y_pred, residuals, labels, titles, fig_size, save_pat
 
 def _create_distribution_plot(residuals, labels, titles, fig_size, save_path, show_figures):
     """
-    Crea un histograma de la distribución de los residuos e incluye la curva de una distribución normal teórica.
+    Creates a histogram of the residuals distribution and includes a theoretical normal distribution curve.
     
-    Parámetros:
+    Parameters:
     -----------
     residuals : array-like
-        Residuos de la regresión.
+        Regression residuals.
     labels : dict
-        Etiquetas para los ejes.
+        Labels for the axes.
     titles : dict
-        Títulos de los gráficos.
+        Plot titles.
     fig_size : tuple
-        Tamaño de la figura.
+        Figure size.
     save_path : str
-        Ruta para guardar la figura.
+        Path to save the figure.
     show_figures : bool
-        Indica si se muestra la figura.
+        Indicates whether to display the figure.
     
-    Retorna:
+    Returns:
     --------
     matplotlib.figure.Figure
-        La figura generada.
+        The generated figure.
     """
     fig_dist = plt.figure(figsize=fig_size)
     
-    sns.histplot(residuals, kde=True, stat="density", label="Distribución")
+    sns.histplot(residuals, kde=True, stat="density", label="Distribution")
     
     plt.xlabel(labels["residuals"])
-    plt.ylabel("Frecuencia")
+    plt.ylabel("Frequency")
     plt.title(titles["distribution"])
     plt.grid(True, alpha=0.3, linestyle='--')
     
     x = np.linspace(np.min(residuals), np.max(residuals), 100)
     mean = np.mean(residuals)
     std = np.std(residuals)
-    # calcular la función de densidad de probabilidad de una normal
+    # calculate the probability density function of a normal distribution
     normal_pdf = (1 / (std * np.sqrt(2 * np.pi))) * np.exp(-((x - mean) ** 2) / (2 * std ** 2))
     
-    plt.plot(x, normal_pdf, 'r-', label="Distribución normal")
+    plt.plot(x, normal_pdf, 'r-', label="Normal distribution")
     plt.legend()
     
     return _save_and_show_figure(fig_dist, save_path, "residuals_distribution.png", show_figures)
@@ -261,68 +261,68 @@ def _create_distribution_plot(residuals, labels, titles, fig_size, save_path, sh
 
 def _create_qq_plot(residuals, titles, fig_size, save_path, show_figures):
     """
-    Crea un gráfico Q-Q para comparar los cuantiles de los residuos con los cuantiles teóricos de una distribución normal.
+    Creates a Q-Q plot to compare the quantiles of the residuals with the theoretical quantiles of a normal distribution.
     
-    Parámetros:
+    Parameters:
     -----------
     residuals : array-like
-        Residuos de la regresión.
+        Regression residuals.
     titles : dict
-        Títulos de los gráficos.
+        Plot titles.
     fig_size : tuple
-        Tamaño de la figura.
+        Figure size.
     save_path : str
-        Ruta para guardar la figura.
+        Path to save the figure.
     show_figures : bool
-        Indica si se muestra la figura.
+        Indicates whether to display the figure.
     
-    Retorna:
+    Returns:
     --------
     matplotlib.figure.Figure
-        La figura generada.
+        The generated figure.
     """
     def erfinv(y):
         """
-        Aproxima la inversa de la función error utilizando la fórmula de Winitzki.
+        Approximates the inverse error function using Winitzki's formula.
         
-        Parámetros:
+        Parameters:
         -----------
-        y : float o array-like
-            Valor(es) para los que se calcula la inversa.
+        y : float or array-like
+            Value(s) for which the inverse is calculated.
         
-        Retorna:
+        Returns:
         --------
-        float o array-like
-            Valor(es) aproximado(s) de la inversa de la función error.
+        float or array-like
+            Approximated value(s) of the inverse error function.
         """
         a = 0.147
-        ln = np.log(1 - y**2)  # calcular el logaritmo de (1 - y^2)
+        ln = np.log(1 - y**2)  # calculate the logarithm of (1 - y^2)
         term1 = 2/(np.pi * a) + ln/2
-        return np.sign(y) * np.sqrt(np.sqrt(term1**2 - ln/a) - term1)  # cálculo de la inversa
+        return np.sign(y) * np.sqrt(np.sqrt(term1**2 - ln/a) - term1)  # calculation of the inverse
         
     fig_qq = plt.figure(figsize=fig_size)
     
-    ordered_values = np.sort(residuals)  # ordenar los residuos
+    ordered_values = np.sort(residuals)  # sort the residuals
     n = len(residuals)
     
-    # calcular los porcentajes para cada punto (p = (i-0.5)/n)
+    # calculate percentages for each point (p = (i-0.5)/n)
     probs = (np.arange(1, n+1) - 0.5) / n
     
-    # calcular los cuantiles teóricos usando la función erfinv
+    # calculate theoretical quantiles using the erfinv function
     theoretical_quantiles = np.sqrt(2) * erfinv(2 * probs - 1)
     
-    # ajustar una línea de regresión lineal entre los cuantiles teóricos y los observados
+    # fit a linear regression line between theoretical and observed quantiles
     slope, intercept = np.polyfit(theoretical_quantiles, ordered_values, 1)
     
-    # calcular la correlación entre los cuantiles teóricos y observados
+    # calculate correlation between theoretical and observed quantiles
     r = np.corrcoef(theoretical_quantiles, ordered_values)[0, 1]
     
-    plt.scatter(theoretical_quantiles, ordered_values, alpha=0.7, label="Cuantiles")
+    plt.scatter(theoretical_quantiles, ordered_values, alpha=0.7, label="Quantiles")
     plt.plot(theoretical_quantiles, slope * theoretical_quantiles + intercept, 'r--',
-             label=f"Línea de referencia (r={r:.3f})")
+             label=f"Reference line (r={r:.3f})")
     
-    plt.xlabel("Cuantiles teóricos")
-    plt.ylabel("Cuantiles observados")
+    plt.xlabel("Theoretical quantiles")
+    plt.ylabel("Observed quantiles")
     plt.title(titles["qq_plot"])
     plt.legend()
     plt.grid(True, alpha=0.3, linestyle='--')
@@ -332,26 +332,26 @@ def _create_qq_plot(residuals, titles, fig_size, save_path, show_figures):
 
 def _setup_plot_with_optimal_value(lambdas, metric_scores, metric_name, is_minimize=None, optimal_lambda=None, optimal_metric=None, ax=None):
     """
-    función auxiliar para configurar un gráfico con un marcador de valor óptimo
+    Helper function to set up a plot with an optimal value marker
     
-    parámetros:
+    Parameters:
     -----------
     lambdas : array-like
-        valores de lambda
+        lambda values
     metric_scores : array-like
-        puntuaciones para cada lambda
+        scores for each lambda
     metric_name : str
-        nombre de la métrica
-    is_minimize : bool, opcional
-        si la métrica debe ser minimizada (si es None, se infiere del nombre de la métrica)
-    optimal_lambda : float, opcional
-        valor óptimo de lambda pre-calculado
-    optimal_metric : float, opcional
-        valor óptimo de la métrica pre-calculado
-    ax : matplotlib.axes.Axes, opcional
-        ejes sobre los que graficar
+        name of the metric
+    is_minimize : bool, optional
+        whether the metric should be minimized (if None, inferred from metric name)
+    optimal_lambda : float, optional
+        pre-calculated optimal lambda value
+    optimal_metric : float, optional
+        pre-calculated optimal metric value
+    ax : matplotlib.axes.Axes, optional
+        axes to plot on
     
-    retorna:
+    Returns:
     --------
     tuple
         (optimal_lambda, optimal_metric, ax)
@@ -359,14 +359,14 @@ def _setup_plot_with_optimal_value(lambdas, metric_scores, metric_name, is_minim
     if ax is None:
         _, ax = plt.subplots(figsize=(10, 6))
     
-    # grafica la línea
+    # plot the line
     sns.lineplot(x=lambdas, y=metric_scores, ax=ax, color='royalblue', label=metric_name)
     
-    # determina si estamos minimizando o maximizando
+    # determine if we're minimizing or maximizing
     if is_minimize is None:
         is_minimize = any(term in metric_name.lower() for term in ['error', 'loss', 'mse', 'mae'])
     
-    # encuentra el valor óptimo si no se proporciona
+    # find the optimal value if not provided
     if optimal_lambda is None or optimal_metric is None:
         if is_minimize:
             optimal_idx = np.argmin(metric_scores)
@@ -380,12 +380,12 @@ def _setup_plot_with_optimal_value(lambdas, metric_scores, metric_name, is_minim
     else:
         optimal_type = "Min" if is_minimize else "Max"
     
-    # marca el punto óptimo
+    # mark the optimal point
     ax.scatter([optimal_lambda], [optimal_metric], color='red', s=100, zorder=5,
                label=f'{optimal_type} {metric_name}: {optimal_metric:.4f} (λ = {optimal_lambda:.4f})')
     ax.axvline(x=optimal_lambda, color='red', linestyle='--', alpha=0.7)
     
-    ax.text(0.02, 0.98, f'λ óptimo: {optimal_lambda:.4f}\n{metric_name} {optimal_type.lower()}: {optimal_metric:.4f}',
+    ax.text(0.02, 0.98, f'Optimal λ: {optimal_lambda:.4f}\n{metric_name} {optimal_type.lower()}: {optimal_metric:.4f}',
             transform=ax.transAxes, bbox=dict(facecolor='white', alpha=0.8), verticalalignment='top')
     
     return optimal_lambda, optimal_metric, ax
@@ -393,42 +393,42 @@ def _setup_plot_with_optimal_value(lambdas, metric_scores, metric_name, is_minim
 
 def plot_weights_vs_lambda(lambdas, weights, feature_names, custom_titles=None):
     """
-    Grafica los valores de los pesos en función de la regularización λ usando seaborn.
+    Plots weight values as a function of regularization λ using seaborn.
     
-    Parámetros:
+    Parameters:
     -----------
-    lambdas : lista o array
-        Valores de λ.
+    lambdas : list or array
+        λ values.
     weights : array-like
-        Matriz donde cada columna representa los pesos de una característica para cada λ.
-    feature_names : lista
-        Nombres de las características.
-    custom_titles : dict, opcional
-        Títulos personalizados con claves: 'title', 'xlabel', 'ylabel'.
+        Matrix where each column represents the weights of a feature for each λ.
+    feature_names : list
+        Feature names.
+    custom_titles : dict, optional
+        Custom titles with keys: 'title', 'xlabel', 'ylabel'.
     
-    Retorna:
+    Returns:
     --------
     None
     """
-    # títulos por defecto
+    # default titles
     titles = {
         "title": "Ridge Regression: Weight Values vs Regularization Strength",
         "xlabel": "Regularization strength (λ)",
         "ylabel": "Weight Value"
     }
     
-    # actualizar con títulos personalizados si se proporcionan
+    # update with custom titles if provided
     if custom_titles:
         titles.update(custom_titles)
 
     plt.figure(figsize=(16, 6))
     sns.set_style("whitegrid")
     
-    # crear un DataFrame para facilitar el uso con seaborn
+    # create a DataFrame to facilitate use with seaborn
     data = pd.DataFrame(weights, columns=feature_names[:weights.shape[1]])
     data['lambda'] = lambdas
     
-    # convertir el DataFrame a formato long para graficar múltiples líneas
+    # convert DataFrame to long format to plot multiple lines
     data_long = pd.melt(data, id_vars=['lambda'], var_name='feature', value_name='weight')
     
     ax = sns.lineplot(x='lambda', y='weight', hue='feature', data=data_long)
@@ -438,7 +438,7 @@ def plot_weights_vs_lambda(lambdas, weights, feature_names, custom_titles=None):
     plt.title(titles["title"], fontsize=14)
     plt.grid(True, which="both", ls="-", alpha=0.2)
     
-    # mover la leyenda fuera del gráfico
+    # move the legend outside the plot
     plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', title='Features')
     
     plt.tight_layout()
@@ -447,31 +447,31 @@ def plot_weights_vs_lambda(lambdas, weights, feature_names, custom_titles=None):
 
 def plot_metric_vs_lambda(ax, lambdas, metric_scores, metric_name="MSE", marker='o'):
     """
-    Grafica una métrica (por ejemplo, MSE o R²) en función de λ.
+    Plots a metric (for example, MSE or R²) as a function of λ.
     
-    Parámetros:
+    Parameters:
     -----------
     ax : matplotlib.axes.Axes
-        Eje donde se dibuja el gráfico.
-    lambdas : lista o array
-        Valores de λ.
-    metric_scores : lista o array
-        Valores de la métrica.
-    metric_name : str, opcional
-        Nombre de la métrica ("MSE" o "R2"). Por defecto "MSE".
-    marker : str, opcional
-        Marcador para el punto óptimo.
+        Axis where the plot is drawn.
+    lambdas : list or array
+        λ values.
+    metric_scores : list or array
+        Metric values.
+    metric_name : str, optional
+        Metric name ("MSE" or "R2"). Default "MSE".
+    marker : str, optional
+        Marker for the optimal point.
     
-    Retorna:
+    Returns:
     --------
     tuple
-        (optimal_lambda, optimal_metric) con el λ y la métrica óptimos.
+        (optimal_lambda, optimal_metric) with the optimal λ and metric.
     """
     is_minimize = metric_name.upper() != "R2"
     optimal_lambda, optimal_metric, _ = _setup_plot_with_optimal_value(
         lambdas, metric_scores, metric_name, is_minimize, ax=ax)
     
-    ax.set_xlabel('Intensidad de regularización (λ)')
+    ax.set_xlabel('Regularization strength (λ)')
     ax.set_ylabel(metric_name)
     ax.set_title(f'{metric_name} vs λ')
     ax.grid(True)
@@ -481,21 +481,21 @@ def plot_metric_vs_lambda(ax, lambdas, metric_scores, metric_name="MSE", marker=
 
 def plot_performance_metrics(lambdas, mse_scores, r2_scores):
     """
-    Crea subgráficos para visualizar las métricas MSE y R² en función de λ.
+    Creates subplots to visualize MSE and R² metrics as a function of λ.
     
-    Parámetros:
+    Parameters:
     -----------
-    lambdas : lista o array
-        Valores de λ.
-    mse_scores : lista o array
-        Valores de MSE.
-    r2_scores : lista o array
-        Valores de R².
+    lambdas : list or array
+        λ values.
+    mse_scores : list or array
+        MSE values.
+    r2_scores : list or array
+        R² values.
     
-    Retorna:
+    Returns:
     --------
     tuple
-        (min_lambda, min_mse, max_lambda, max_r2) con los valores óptimos para cada métrica.
+        (min_lambda, min_mse, max_lambda, max_r2) with the optimal values for each metric.
     """
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
     
@@ -503,7 +503,7 @@ def plot_performance_metrics(lambdas, mse_scores, r2_scores):
     max_lambda, max_r2 = plot_metric_vs_lambda(ax2, lambdas, r2_scores, metric_name="R2", marker=None)
     
     plt.tight_layout()
-    plt.suptitle('Métricas de rendimiento vs Intensidad de regularización', y=1.05, fontsize=16)
+    plt.suptitle('Performance metrics vs Regularization strength', y=1.05, fontsize=16)
     plt.show()
     
     return min_lambda, min_mse, max_lambda, max_r2
@@ -511,46 +511,46 @@ def plot_performance_metrics(lambdas, mse_scores, r2_scores):
 
 def plot_cv_results(lambdas, cv_metrics_scores, optimal_lambda=None, min_cv_metrics=None, metric_name='mse', title=None, ax=None):
     """
-    Grafica la variación de las métricas promedio de validación cruzada en función de λ utilizando seaborn.
+    Plots the variation of average cross-validation metrics as a function of λ using seaborn.
     
-    Parámetros:
+    Parameters:
     -----------
-    lambdas : lista o array
-        Valores de λ.
-    cv_metrics_scores : dict o array
-        Métricas promedio para cada λ. Si es dict, debe contener la métrica especificada.
-    optimal_lambda : valor o dict, opcional
-        Valor óptimo de λ que optimiza la métrica. Si es None, se calcula automáticamente.
-    min_cv_metrics : valor o dict, opcional
-        Valor óptimo de la métrica. Si es None, se calcula automáticamente.
-    metric_name : str, opcional
-        Nombre de la métrica a visualizar ('mse', 'r2', etc.). Por defecto 'mse'.
-    title : str, opcional
-        Título del gráfico.
-    ax : matplotlib.axes.Axes, opcional
-        Eje sobre el cual dibujar el gráfico.
+    lambdas : list or array
+        λ values.
+    cv_metrics_scores : dict or array
+        Average metrics for each λ. If dict, must contain the specified metric.
+    optimal_lambda : value or dict, optional
+        Optimal λ value that optimizes the metric. If None, calculated automatically.
+    min_cv_metrics : value or dict, optional
+        Optimal metric value. If None, calculated automatically.
+    metric_name : str, optional
+        Name of the metric to visualize ('mse', 'r2', etc.). Default 'mse'.
+    title : str, optional
+        Plot title.
+    ax : matplotlib.axes.Axes, optional
+        Axis on which to draw the plot.
     
-    Retorna:
+    Returns:
     --------
     matplotlib.axes.Axes
-        Objeto de ejes con el gráfico generado.
+        Axes object with the generated plot.
     """
     if ax is None:
         plt.figure(figsize=(12, 7))
         ax = plt.gca()
     sns.set_style("whitegrid")
     
-    # determinar si cv_metrics_scores es un diccionario o un array
+    # determine if cv_metrics_scores is a dictionary or an array
     if isinstance(cv_metrics_scores, dict):
         metric_name = metric_name.lower()
         if metric_name not in cv_metrics_scores:
             available_metrics = list(cv_metrics_scores.keys())
-            raise ValueError(f"La métrica '{metric_name}' no está disponible. Métricas disponibles: {available_metrics}")
+            raise ValueError(f"The metric '{metric_name}' is not available. Available metrics: {available_metrics}")
         metrics_values = cv_metrics_scores[metric_name]
     else:
         metrics_values = cv_metrics_scores
     
-    # calcular el valor óptimo de λ y la métrica correspondiente si no se proporcionan
+    # calculate the optimal λ value and the corresponding metric if not provided
     if isinstance(optimal_lambda, dict) and metric_name in optimal_lambda:
         optimal_lambda_value = optimal_lambda[metric_name]
     else:
@@ -574,10 +574,10 @@ def plot_cv_results(lambdas, cv_metrics_scores, optimal_lambda=None, min_cv_metr
         ax
     )
     
-    ax.set_xlabel('Intensidad de regularización (λ)', fontsize=12)
-    ax.set_ylabel(f'{metric_name.upper()} - Validación Cruzada', fontsize=12)
+    ax.set_xlabel('Regularization strength (λ)', fontsize=12)
+    ax.set_ylabel(f'{metric_name.upper()} - Cross Validation', fontsize=12)
     if title is None:
-        title = f'Validación Cruzada: {metric_name.upper()} vs λ'
+        title = f'Cross Validation: {metric_name.upper()} vs λ'
     ax.set_title(title, fontsize=14)
     ax.legend()
     ax.grid(True, alpha=0.3)

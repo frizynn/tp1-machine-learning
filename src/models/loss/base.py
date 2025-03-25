@@ -6,17 +6,33 @@ from typing import Optional, Callable, Dict, Union
 class LossFunction(ABC):
 
     def __init__(self):
+        """
+        Initialize the loss function with MSE as the default loss.
+        """
         self.default_loss = self.mse
 
     @classmethod
     def change_loss(cls, loss):
+        """
+        Change the default loss function.
+        
+        Parameters
+        ----------
+        loss : function
+            The loss function to set as default.
+            
+        Returns
+        -------
+        cls
+            The LossFunction class with updated default loss.
+        """
         cls.default_loss = loss
         return cls
 
     @staticmethod
     def mse(y_true, y_pred):
         """
-        Calcula el error cuadrático medio (MSE) entre y_true e y_pred.
+        Calculate the mean squared error (MSE) between y_true and y_pred.
         """
         y_true = np.asarray(y_true)
         y_pred = np.asarray(y_pred)
@@ -27,7 +43,7 @@ class LossFunction(ABC):
     @staticmethod
     def mae(y_true, y_pred):
         """
-        Calcula el error absoluto medio (MAE) entre y_true e y_pred.
+        Calculate the mean absolute error (MAE) between y_true and y_pred.
         """
         y_true = np.asarray(y_true)
         y_pred = np.asarray(y_pred)
@@ -38,7 +54,7 @@ class LossFunction(ABC):
     @staticmethod
     def l2(y_true, y_pred):
         """
-        Calcula la norma L2 entre y_true e y_pred.
+        Calculate the L2 norm between y_true and y_pred.
         """
         y_true = np.asarray(y_true)
         y_pred = np.asarray(y_pred)
@@ -49,7 +65,7 @@ class LossFunction(ABC):
     @staticmethod
     def l1(y_true, y_pred):
         """
-        Calcula la norma L1 entre y_true e y_pred.
+        Calculate the L1 norm between y_true and y_pred.
         """
         y_true = np.asarray(y_true)
         y_pred = np.asarray(y_pred)
@@ -57,25 +73,25 @@ class LossFunction(ABC):
         l1 = np.sum(np.abs(error))
         return l1
     
-    # Métodos para regularización
+    # Methods for regularization
     @staticmethod
     def ridge_penalty(coeffs, alpha=1.0, exclude_intercept=True):
         """
-        Calcula la penalización L2 (Ridge) para los coeficientes.
+        Calculate the L2 (Ridge) penalty for coefficients.
         
         Parameters
         ----------
         coeffs : np.ndarray
-            Coeficientes del modelo
+            Model coefficients
         alpha : float
-            Parámetro de regularización
+            Regularization parameter
         exclude_intercept : bool
-            Si es True, no penaliza el intercepto (primer coeficiente)
+            If True, doesn't penalize the intercept (first coefficient)
             
         Returns
         -------
         float
-            Valor de la penalización L2
+            Value of the L2 penalty
         """
         if exclude_intercept and len(coeffs) > 1:
             penalty = np.sum(coeffs[1:]**2)
@@ -87,21 +103,21 @@ class LossFunction(ABC):
     @staticmethod
     def lasso_penalty(coeffs, alpha=1.0, exclude_intercept=True):
         """
-        Calcula la penalización L1 (Lasso) para los coeficientes.
+        Calculate the L1 (Lasso) penalty for coefficients.
         
         Parameters
         ----------
         coeffs : np.ndarray
-            Coeficientes del modelo
+            Model coefficients
         alpha : float
-            Parámetro de regularización
+            Regularization parameter
         exclude_intercept : bool
-            Si es True, no penaliza el intercepto (primer coeficiente)
+            If True, doesn't penalize the intercept (first coefficient)
             
         Returns
         -------
         float
-            Valor de la penalización L1
+            Value of the L1 penalty
         """
         if exclude_intercept and len(coeffs) > 1:
             penalty = np.sum(np.abs(coeffs[1:]))
@@ -115,41 +131,41 @@ class LossFunction(ABC):
     def regularized_loss(loss_name, y_true, y_pred, coeffs, 
                          reg_type=None, alpha=0.0, l1_ratio=0.5, exclude_intercept=True):
         """
-        Calcula la función de pérdida con regularización.
+        Calculate the loss function with regularization.
         
         Parameters
         ----------
         loss_name : str
-            Nombre de la función de pérdida ('mse', 'mae', 'l1', 'l2')
+            Name of the loss function ('mse', 'mae', 'l1', 'l2')
         y_true : np.ndarray
-            Valores reales
+            True values
         y_pred : np.ndarray
-            Predicciones
+            Predictions
         coeffs : np.ndarray
-            Coeficientes del modelo
+            Model coefficients
         reg_type : str, optional
-            Tipo de regularización ('l1', 'l2', 'elasticnet', None)
+            Type of regularization ('l1', 'l2', 'elasticnet', None)
         alpha : float, optional
-            Parámetro de regularización
+            Regularization parameter
         l1_ratio : float, optional
-            Proporción de la penalización L1 para ElasticNet
+            Proportion of L1 penalty for ElasticNet
         exclude_intercept : bool, optional
-            Si es True, no penaliza el intercepto
+            If True, doesn't penalize the intercept
             
         Returns
         -------
         float
-            Valor de la función de pérdida regularizada
+            Value of the regularized loss function
         """
-        # obtener la función de pérdida base
+        # get the base loss function
         base_loss_func = getattr(LossFunction, loss_name, LossFunction.mse)
         base_loss = base_loss_func(y_true, y_pred)
         
-        # si no hay regularización, devolver la pérdida base
+        # if no regularization, return the base loss
         if reg_type is None or alpha == 0:
             return base_loss
         
-        # calcular la penalización según el tipo de regularización
+        # calculate the penalty based on the regularization type
         if reg_type == 'l2':
             penalty = LossFunction.ridge_penalty(coeffs, alpha, exclude_intercept)
         elif reg_type == 'l1':
@@ -157,86 +173,86 @@ class LossFunction(ABC):
         elif reg_type == 'elasticnet':
             penalty = LossFunction.elastic_net_penalty(coeffs, alpha, l1_ratio, exclude_intercept)
         else:
-            raise ValueError(f"Tipo de regularización no reconocido: {reg_type}")
+            raise ValueError(f"Unrecognized regularization type: {reg_type}")
         
         return base_loss + penalty
     
     @staticmethod
     def gradient(loss_name, X, y_true, coeffs, reg_type=None, alpha=0.0, l1_ratio=0.5, exclude_intercept=True):
         """
-        Calcula el gradiente de la función de pérdida especificada respecto a los coeficientes,
-        incluyendo el término de regularización si se especifica.
+        Calculate the gradient of the specified loss function with respect to the coefficients,
+        including the regularization term if specified.
         
         Parameters
         ----------
         loss_name : str
-            Nombre de la función de pérdida ('mse', 'mae', 'l1', 'l2')
+            Name of the loss function ('mse', 'mae', 'l1', 'l2')
         X : np.ndarray
-            Matriz de diseño con primera columna de unos para el intercepto
+            Design matrix with first column of ones for the intercept
         y_true : np.ndarray
-            Vector objetivo
+            Target vector
         coeffs : np.ndarray
-            Vector de coeficientes actual
+            Current coefficient vector
         reg_type : str, optional
-            Tipo de regularización ('l1', 'l2', 'elasticnet', None)
+            Type of regularization ('l1', 'l2', 'elasticnet', None)
         alpha : float, optional
-            Parámetro de regularización
+            Regularization parameter
         l1_ratio : float, optional
-            Proporción de la penalización L1 para ElasticNet
+            Proportion of L1 penalty for ElasticNet
         exclude_intercept : bool, optional
-            Si es True, no penaliza el intercepto
+            If True, doesn't penalize the intercept
             
         Returns
         -------
         np.ndarray
-            Gradiente de la función de pérdida regularizada
+            Gradient of the regularized loss function
         """
-        m = X.shape[0]  # número de muestras
+        m = X.shape[0]  # number of samples
         y_pred = X @ coeffs
         error = y_pred - y_true
         
-        # calcular el gradiente base según la función de pérdida
+        # calculate the base gradient according to the loss function
         if loss_name == 'mse':
-            # gradiente del MSE: (2/m) * X^T * (X*coeffs - y)
+            # gradient of MSE: (2/m) * X^T * (X*coeffs - y)
             gradient = (2/m) * (X.T @ error)
         elif loss_name == 'mae':
-            # gradiente del MAE: (1/m) * X^T * sign(X*coeffs - y)
+            # gradient of MAE: (1/m) * X^T * sign(X*coeffs - y)
             gradient = (1/m) * (X.T @ np.sign(error))
         elif loss_name == 'l2':
-            # gradiente de L2: X^T * (X*coeffs - y) / ||X*coeffs - y||_2
+            # gradient of L2: X^T * (X*coeffs - y) / ||X*coeffs - y||_2
             norm = np.linalg.norm(error)
-            if norm < 1e-10:  # Evitar división por cero
+            if norm < 1e-10:  # Avoid division by zero
                 return np.zeros_like(coeffs)
             gradient = X.T @ (error / norm)
         elif loss_name == 'l1':
-            # gradiente de L1: X^T * sign(X*coeffs - y)
+            # gradient of L1: X^T * sign(X*coeffs - y)
             gradient = X.T @ np.sign(error)
         else:
-            raise ValueError(f"Función de pérdida no reconocida: {loss_name}")
+            raise ValueError(f"Unrecognized loss function: {loss_name}")
             
-        # si no hay regularización, devolver el gradiente base
+        # if no regularization, return the base gradient
         if reg_type is None or alpha == 0:
             return gradient
         
-        # calcular el gradiente del término de regularización
+        # calculate the gradient of the regularization term
         reg_gradient = np.zeros_like(coeffs)
         
-        # determinar qué coeficientes penalizar
+        # determine which coefficients to penalize
         start_idx = 1 if exclude_intercept else 0
         
         if reg_type == 'l2':
-            # gradiente de la regularización Ridge: alpha * coeffs
+            # gradient of Ridge regularization: alpha * coeffs
             reg_gradient[start_idx:] = alpha * coeffs[start_idx:]
         elif reg_type == 'l1':
-            # gradiente de la regularización Lasso: alpha * sign(coeffs)
+            # gradient of Lasso regularization: alpha * sign(coeffs)
             reg_gradient[start_idx:] = alpha * np.sign(coeffs[start_idx:])
         elif reg_type == 'elasticnet':
-            # gradiente de la regularización ElasticNet: combina L1 y L2
+            # gradient of ElasticNet regularization: combines L1 and L2
             l1_part = alpha * l1_ratio * np.sign(coeffs[start_idx:])
             l2_part = alpha * (1 - l1_ratio) * coeffs[start_idx:]
             reg_gradient[start_idx:] = l1_part + l2_part
         else:
-            raise ValueError(f"Tipo de regularización no reconocido: {reg_type}")
+            raise ValueError(f"Unrecognized regularization type: {reg_type}")
             
         return gradient + reg_gradient
     

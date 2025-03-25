@@ -5,7 +5,7 @@ from typing import Dict
 
 
 class FitMethod(Enum):
-    """Enum para los métodos de entrenamiento disponibles."""
+    """Enum for the available training methods."""
 
     PSEUDO_INVERSE = "pseudo_inverse"
     GRADIENT_DESCENT = "gradient_descent"
@@ -29,19 +29,19 @@ class Model:
     @staticmethod
     def _build_design_matrix(X: pd.DataFrame, degree: int = 1) -> pd.DataFrame:
         """
-        Construye la matriz de diseño para el modelo de regresión.
+        Builds the design matrix for the regression model.
 
-        Parámetros:
+        Parameters:
         -----------
         X : pd.DataFrame
-            DataFrame de características
+            DataFrame of features
         degree : int, default=1
-            Grado de la matriz de diseño
+            Degree of the design matrix
 
-        retorna:
+        Returns:
         --------
         pd.DataFrame
-            Matriz de diseño
+            Design matrix
         """
         X = X.reset_index(drop=True)
         if degree == 1:
@@ -57,12 +57,12 @@ class Model:
 
     def get_coef_array(self):
         """
-        Obtiene los coeficientes del modelo como un array de numpy.
+        Gets the model coefficients as a numpy array.
 
-        retorna:
+        Returns:
         --------
         np.ndarray
-            Coeficientes del modelo
+            Model coefficients
         """
 
 
@@ -70,12 +70,12 @@ class Model:
 
     def get_coef_dict(self):
         """
-        Obtiene un diccionario con los nombres de features y sus coeficientes.
+        Gets a dictionary with feature names and their coefficients.
 
-        retorna:
+        Returns:
         --------
         dict
-            Diccionario con los nombres de features y sus coeficientes
+            Dictionary with feature names and their coefficients
         """
         if hasattr(self, 'feature_names') and self.feature_names is not None and self._coef is not None:
             return dict(zip(self.feature_names, self._coef))
@@ -83,37 +83,37 @@ class Model:
 
     def print_coefficients(self, format_precision: int = 4):
         """
-        Imprime los coeficientes del modelo con los nombres de sus variables.
+        Prints the model coefficients with their variable names.
 
-        Parámetros:
+        Parameters:
         -----------
         format_precision : int
-            Número de decimales a mostrar
+            Number of decimal places to display
         """
         if not hasattr(self, 'coef_dict') or self.coef_dict is None:
             return super().print_coefficients(format_precision)
             
-        print(f"Método: {self._training_info.get('method', 'desconocido')}")
+        print(f"Method: {self._training_info.get('method', 'unknown')}")
         print(f"Intercept: {self.intercept_:.{format_precision}f}\n")
-        print("Coeficientes:")
+        print("Coefficients:")
         print("-" * 30)
 
         for name, coef in self.coef_dict.items():
             print(f"{name:<15} | {coef:+.{format_precision}f}")
 
         if self._training_info.get("method") == "gradient_descent":
-            print(f"Convergencia: {'Sí' if self._training_info['converged'] else 'No'}")
-            print(f"Iteraciones: {self._training_info['final_epoch']}/{self._training_info['epochs']}")
+            print(f"Convergence: {'Yes' if self._training_info['converged'] else 'No'}")
+            print(f"Iterations: {self._training_info['final_epoch']}/{self._training_info['epochs']}")
 
 
     def get_training_info(self) -> Dict:
         """
-        Obtiene información sobre el entrenamiento del modelo.
+        Gets information about the model training.
 
-        retorna:
+        Returns:
         --------
         Dict
-            Diccionario con información sobre el entrenamiento
+            Dictionary with information about the training
         """
         return self._training_info.copy()
     

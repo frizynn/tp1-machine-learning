@@ -1,49 +1,48 @@
-
 class ClusteringModel:
     def __init__(self, n_clusters=2):
         """
-        Inicializa el modelo de clustering con el número deseado de clusters.
+        Initialize the clustering model with the desired number of clusters.
 
-        Parámetros:
+        Parameters:
         -----------
         n_clusters : int, default=2
-            Número de clusters.
+            Number of clusters.
         """
         self.n_clusters = n_clusters
         self.labels_ = None  
 
     def fit(self, X):
         """
-        Ajusta el modelo a los datos X.
-        Este método debe implementarse en las subclases.
+        Fit the model to the data X.
+        This method must be implemented in subclasses.
 
-        Parámetros:
+        Parameters:
         -----------
-        X : array-like de shape (n_muestras, n_features)
-            Conjunto de datos a ajustar.
+        X : array-like of shape (n_samples, n_features)
+            Dataset to fit.
         """
-        raise NotImplementedError("El método fit() debe implementarse en la subclase.")
+        raise NotImplementedError("The fit() method must be implemented in the subclass.")
 
     def predict(self, X):
         """
-        Predice la etiqueta de cluster para cada muestra en X.
-        Este método debe implementarse en las subclases.
+        Predict the cluster label for each sample in X.
+        This method must be implemented in subclasses.
 
-        Parámetros:
+        Parameters:
         -----------
-        X : array-like de shape (n_muestras, n_features)
-            Conjunto de datos a predecir.
+        X : array-like of shape (n_samples, n_features)
+            Dataset to predict.
         """
-        raise NotImplementedError("El método predict() debe implementarse en la subclase.")
+        raise NotImplementedError("The predict() method must be implemented in the subclass.")
 
     def fit_predict(self, X):
         """
-        Combina fit() y predict() para ajustar el modelo y retornar las etiquetas.
+        Combines fit() and predict() to fit the model and return the labels.
 
-        Parámetros:
+        Parameters:
         -----------
-        X : array-like de shape (n_muestras, n_features)
-            Conjunto de datos a ajustar y predecir.
+        X : array-like of shape (n_samples, n_features)
+            Dataset to fit and predict.
         """
         self.fit(X)
         return self.labels_

@@ -1,4 +1,3 @@
-
 from typing import Union, Optional
 from .base import Model, FitMethod
 import pandas as pd
@@ -38,34 +37,34 @@ class PolynomialRegressor(Model):
         report_metrics: bool = False
     ) -> "PolynomialRegressor":
         """
-        Entrena el modelo usando el método especificado
+        Trains the model using the specified method
 
         Parameters
         ----------
         X : pd.DataFrame
-            Matriz de características
+            Feature matrix
         y : pd.Series
-            Vector objetivo
+            Target vector
         method : Union[str, FitMethod]
-            Método de entrenamiento ('pseudo_inverse' o 'gradient_descent')
-        learning_rate : float, opcional
-            Tasa de aprendizaje para descenso de gradiente (default: 0.01)
-        epochs : int, opcional
-            Número máximo de iteraciones para descenso de gradiente (default: 1000)
-        tolerance : float, opcional
-            Criterio de convergencia para descenso de gradiente (default: 1e-6)
-        verbose : bool, opcional
-            Mostrar progreso durante el entrenamiento (default: False)
-        loss : str, opcional
-            Función de pérdida a utilizar ('mse', 'mae', 'l1', 'l2') (default: 'mse')
-        regularization : str, opcional
-            Tipo de regularización ('l1', 'l2', 'elasticnet', None) (default: None)
-        alpha : float, opcional
-            Parámetro de regularización (default: 0.0)
-        l1_ratio : float, opcional
-            Proporción de la penalización L1 para ElasticNet (default: 0.5)
-        exclude_intercept : bool, opcional
-            Si es True, no penaliza el intercepto (default: True)
+            Training method ('pseudo_inverse' or 'gradient_descent')
+        learning_rate : float, optional
+            Learning rate for gradient descent (default: 0.01)
+        epochs : int, optional
+            Maximum number of iterations for gradient descent (default: 1000)
+        tolerance : float, optional
+            Convergence criterion for gradient descent (default: 1e-6)
+        verbose : bool, optional
+            Show progress during training (default: False)
+        loss : str, optional
+            Loss function to use ('mse', 'mae', 'l1', 'l2') (default: 'mse')
+        regularization : str, optional
+            Type of regularization ('l1', 'l2', 'elasticnet', None) (default: None)
+        alpha : float, optional
+            Regularization parameter (default: 0.0)
+        l1_ratio : float, optional
+            Proportion of L1 penalty for ElasticNet (default: 0.5)
+        exclude_intercept : bool, optional
+            If True, does not penalize the intercept (default: True)
         """
         if isinstance(method, str):
             method = method.lower()
@@ -74,43 +73,43 @@ class PolynomialRegressor(Model):
             elif method == "gradient_descent":
                 method = FitMethod.GRADIENT_DESCENT
             else:
-                raise ValueError(f"Método no reconocido: {method}")
+                raise ValueError(f"Unrecognized method: {method}")
 
-        # validar la función de pérdida
+        # validate the loss function
         loss = loss.lower()
         if loss not in ['mse', 'mae', 'l1', 'l2']:
-            raise ValueError(f"Función de pérdida no reconocida: {loss}")
+            raise ValueError(f"Unrecognized loss function: {loss}")
 
-        # validar el tipo de regularización
+        # validate the regularization type
         if regularization is not None:
             regularization = regularization.lower()
             if regularization not in ['l1', 'l2', 'elasticnet']:
-                raise ValueError(f"Tipo de regularización no reconocido: {regularization}")
+                raise ValueError(f"Unrecognized regularization type: {regularization}")
             
-            # validar el valor de alpha
+            # validate alpha value
             if alpha < 0:
-                raise ValueError("El parámetro de regularización alpha debe ser mayor o igual a cero")
+                raise ValueError("The regularization parameter alpha must be greater than or equal to zero")
                 
-            # validar el valor de l1_ratio si usamos elasticnet
+            # validate l1_ratio value if using elasticnet
             if regularization == 'elasticnet':
                 if l1_ratio < 0 or l1_ratio > 1:
-                    raise ValueError("El parámetro l1_ratio debe estar entre 0 y 1")
+                    raise ValueError("The l1_ratio parameter must be between 0 and 1")
 
-        # almacenar los nombres originales de las features
+        # store the original feature names
         self.original_feature_names = X.columns.tolist()
 
-        # para regularización L1 (Lasso) o ElasticNet con l1_ratio > 0 y pseudo_inverse,
-        # lanzar error ya que requieren optimización iterativa
+        # for L1 (Lasso) regularization or ElasticNet with l1_ratio > 0 and pseudo_inverse,
+        # raise error since they require iterative optimization
         if method == FitMethod.PSEUDO_INVERSE and alpha > 0:
             if regularization == 'l1':
-                raise ValueError("La regularización L1 (Lasso) solo puede resolverse mediante gradient_descent, no tienen solución analítica.")
+                raise ValueError("L1 (Lasso) regularization can only be solved using gradient_descent, they don't have an analytical solution.")
 
         if method == FitMethod.PSEUDO_INVERSE:
-            #  si es regularización L2 (Ridge) con pseudo_inverse, usar la solución analítica
+            # if it's L2 (Ridge) regularization with pseudo_inverse, use the analytical solution
             if regularization == 'l2' and alpha > 0:
                 self._fit_ridge_analytical(X, y, alpha, exclude_intercept)
             else:
-                self._fit_pseudo_inverse(X, y,report_metrics)
+                self._fit_pseudo_inverse(X, y, report_metrics)
         elif method == FitMethod.GRADIENT_DESCENT:
             X_design, poly_feature_names = self._build_design_matrix(X, degree=self.degree)
             self.feature_names = poly_feature_names[1:] 
@@ -138,18 +137,18 @@ class PolynomialRegressor(Model):
         alpha: float = 1.0, 
         exclude_intercept: bool = True    ):
         """
-        Entrena un modelo de regresión Ridge usando la solución analítica.
+        Trains a Ridge regression model using the analytical solution.
         
         Parameters
         ----------
         X : pd.DataFrame
-            Matriz de características
+            Feature matrix
         y : pd.Series
-            Vector objetivo
+            Target vector
         alpha : float
-            Parámetro de regularización
+            Regularization parameter
         exclude_intercept : bool
-            Si es True, no penaliza el intercepto
+            If True, does not penalize the intercept
        
         """
         X_design, poly_feature_names = self._build_design_matrix(X, self.degree)
@@ -157,14 +156,14 @@ class PolynomialRegressor(Model):
         y_np = y.values.astype(float)
         n_samples, n_features = X_np.shape
         
-        # crear matriz de identidad para regularización
+        # create identity matrix for regularization
         if exclude_intercept:
             identity = np.eye(n_features)
-            identity[0, 0] = 0  # No regularizar el intercepto
+            identity[0, 0] = 0  # Do not regularize the intercept
         else:
             identity = np.eye(n_features)
         
-        # solución analítica Ridge: β = (X^T·X + α·I)^(-1)·X^T·y
+        # Ridge analytical solution: β = (X^T·X + α·I)^(-1)·X^T·y
         XTX = X_np.T @ X_np
         XTX_reg = XTX + alpha * identity
         XTy = X_np.T @ y_np
@@ -178,10 +177,10 @@ class PolynomialRegressor(Model):
         self._coef = coeffs[1:]
         self.feature_names = poly_feature_names[1:]
         
-        # crear un diccionario que asigna nombres de features a coeficientes
+        # create a dictionary that maps feature names to coefficients
         self.coef_dict = dict(zip(self.feature_names, self._coef))
         
-        # inicializar información de entrenamiento
+        # initialize training information
         training_info = {
             "method": "ridge_analytical",
             "regularization_type": "l2",
@@ -194,16 +193,16 @@ class PolynomialRegressor(Model):
 
     def _fit_pseudo_inverse(self, X: pd.DataFrame, y: pd.Series, report_metrics: bool = True):
         """
-        Entrena un modelo de regresión usando la pseudo-inversa.
+        Trains a regression model using the pseudo-inverse.
         
         Parameters
         ----------
         X : pd.DataFrame
-            Matriz de características
+            Feature matrix
         y : pd.Series
-            Vector objetivo
+            Target vector
         report_metrics : bool
-            Si es True, calcula y guarda métricas adicionales
+            If True, calculates and stores additional metrics
         """
         X_design, poly_feature_names = self._build_design_matrix(X, self.degree)
         X_np = X_design.values.astype(float)
@@ -214,7 +213,7 @@ class PolynomialRegressor(Model):
         self._coef = coeffs[1:]
         self.feature_names = poly_feature_names[1:]  
         
-        # crear un diccionario que asigna nombres de features a coeficientes
+        # create a dictionary that maps feature names to coefficients
         self.coef_dict = dict(zip(self.feature_names, self._coef))
         
         self._training_info = {
@@ -238,44 +237,44 @@ class PolynomialRegressor(Model):
         report_metrics: bool = True
     ) -> None:
         """
-        Entrena el modelo mediante descenso de gradiente.
+        Trains the model using gradient descent.
         
         Parameters
         ----------
         X_np : np.ndarray
-            Matriz de características con columna de unos para el intercepto
+            Feature matrix with a column of ones for the intercept
         y_np : np.ndarray
-            Vector objetivo
+            Target vector
         lr : float
-            Tasa de aprendizaje (default=0.01)
+            Learning rate (default=0.01)
         epochs : int
-            Número máximo de iteraciones (default=1000)
+            Maximum number of iterations (default=1000)
         tolerance : float
-            Criterio de convergencia (default=1e-6)
+            Convergence criterion (default=1e-6)
         verbose : bool
-            Mostrar progreso (default=False)
+            Show progress (default=False)
         loss : str
-            Función de pérdida a utilizar (default='mse')
+            Loss function to use (default='mse')
         regularization : str
-            Tipo de regularización (default=None)
+            Type of regularization (default=None)
         alpha : float
-            Parámetro de regularización (default=0.0)
+            Regularization parameter (default=0.0)
         l1_ratio : float
-            Proporción L1 para ElasticNet (default=0.5)
+            L1 ratio for ElasticNet (default=0.5)
         exclude_intercept : bool
-            No penalizar intercepto (default=True)
+            Do not penalize intercept (default=True)
         """
         if loss not in ['mse', 'mae', 'l1', 'l2']:
-            raise ValueError(f"Función de pérdida no reconocida: {loss}")
+            raise ValueError(f"Unrecognized loss function: {loss}")
         
         if lr <= 0:
-            raise ValueError("La tasa de aprendizaje debe ser mayor que 0")
+            raise ValueError("The learning rate must be greater than 0")
         if epochs <= 0:
-            raise ValueError("El número de épocas debe ser mayor que 0")
+            raise ValueError("The number of epochs must be greater than 0")
         if tolerance <= 0:
-            raise ValueError("La tolerancia debe ser mayor que 0")
+            raise ValueError("The tolerance must be greater than 0")
         
-        # obtener la función de pérdida correspondiente
+        # get the corresponding loss function
         loss_func = getattr(LossFunction, loss, LossFunction.mse)
         
         m, n = X_np.shape
@@ -295,7 +294,7 @@ class PolynomialRegressor(Model):
         for epoch in range(epochs):
             y_pred = X_np @ coeffs
             
-            # calcular la pérdida regularizada
+            # calculate the regularized loss
             if regularization is not None and alpha > 0:
                 current_loss = LossFunction.regularized_loss(
                     loss, y_np, y_pred, coeffs, 
@@ -309,11 +308,11 @@ class PolynomialRegressor(Model):
             if verbose and (epoch % max(1, epochs // 10) == 0):
                 loss_name = loss.upper()
                 reg_info = f" + {regularization.upper()}(α={alpha:.4f})" if regularization else ""
-                print(f"Época {epoch}/{epochs}, {loss_name}{reg_info}: {current_loss:.6f}")
+                print(f"Epoch {epoch}/{epochs}, {loss_name}{reg_info}: {current_loss:.6f}")
             
             if abs(prev_loss - current_loss) < tolerance:
                 if verbose:
-                    print(f"Convergencia alcanzada en época {epoch}")
+                    print(f"Convergence achieved at epoch {epoch}")
                 break
             
             prev_loss = current_loss
@@ -324,7 +323,7 @@ class PolynomialRegressor(Model):
             )
             coeffs -= lr * gradients 
             
-            # rastrear los mejores coeficientes basados en la pérdida de validación
+            # track the best coefficients based on validation loss
             if current_loss < min_loss:
                 min_loss = current_loss
                 best_coeffs = coeffs.copy()
@@ -358,12 +357,12 @@ class PolynomialRegressor(Model):
 
     def _build_design_matrix(self, X: pd.DataFrame, degree: int = 1) -> tuple:
         """
-        Construye la matriz de diseño para regresión polinómica.
+        Builds the design matrix for polynomial regression.
         
         Returns
         -------
         tuple
-            (DataFrame con la matriz de diseño, lista con nombres de las features polinómicas)
+            (DataFrame with the design matrix, list with polynomial feature names)
         """
         X = X.copy()  
         if isinstance(X, pd.Series):
@@ -374,18 +373,18 @@ class PolynomialRegressor(Model):
             
         X = X.reset_index(drop=True)
         
-        # preparar un diccionario para recoger todas las columnas
+        # prepare a dictionary to collect all columns
         poly_data = {"intercept": np.ones(len(X))}
         poly_feature_names = ["intercept"]
         
-        # generar términos polinómicos para cada feature
+        # generate polynomial terms for each feature
         for i in range(1, degree + 1):
             for col in X.columns:
                 feature_name = f"{col}^{i}" if i > 1 else col
                 poly_data[feature_name] = X[col] ** i
                 poly_feature_names.append(feature_name)
         
-        # crear el DataFrame de una vez
+        # create the DataFrame at once
         X_poly = pd.DataFrame(poly_data)
                 
         return X_poly, poly_feature_names
@@ -393,7 +392,7 @@ class PolynomialRegressor(Model):
     @property
     def coef_(self):
         """
-        Devuelve los coeficientes del modelo como un DataFrame.
+        Returns the model coefficients as a DataFrame.
         """
         if hasattr(self, '_coef') and self._coef is not None and hasattr(self, 'feature_names'):
             return pd.DataFrame({
@@ -405,47 +404,47 @@ class PolynomialRegressor(Model):
     @coef_.setter
     def coef_(self, value):
         """
-        Establece los coeficientes del modelo.
+        Sets the model coefficients.
         """
         self._coef = value
 
     def predict(self, X: pd.DataFrame):
         """
-        Realiza predicciones sobre nuevas muestras.
+        Makes predictions on new samples.
 
         Parameters
         ----------
         X : pd.DataFrame
-            Matriz de características
+            Feature matrix
 
         Returns
         -------
         np.ndarray
-            Vector de predicciones
+            Prediction vector
         """
         if self._coef is None or self.intercept_ is None:
-            raise ValueError("El modelo debe ser entrenado antes de hacer predicciones")
+            raise ValueError("The model must be trained before making predictions")
             
         X_design, _ = self._build_design_matrix(X, self.degree)
         X_np = X_design.values.astype(float)
         coeffs = np.concatenate(([self.intercept_], self._coef))
         
         if X_np.shape[1] != len(coeffs):
-            raise ValueError(f"Número incorrecto de características. Esperado: {len(coeffs)}, Recibido: {X_np.shape[1]}")
+            raise ValueError(f"Incorrect number of features. Expected: {len(coeffs)}, Received: {X_np.shape[1]}")
             
         return X_np @ coeffs
 
     def get_weights(self):
         """
-        Devuelve los coeficientes del modelo como un array numpy.
-        Útil para análisis y visualizaciones de pesos vs regularización.
+        Returns the model coefficients as a numpy array.
+        Useful for analysis and visualizations of weights vs regularization.
         
         Returns
         -------
         np.ndarray
-            Array con los coeficientes del modelo (sin intercepto)
+            Array with the model coefficients (without intercept)
         """
         if self._coef is None:
-            raise ValueError("El modelo debe ser entrenado antes de obtener los pesos")
+            raise ValueError("The model must be trained before getting the weights")
         return np.array(self._coef)
 

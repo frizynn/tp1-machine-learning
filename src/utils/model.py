@@ -23,42 +23,42 @@ def prepare_and_evaluate_test_data(
     round_digits=4
 ):
     """
-    prepara datos de prueba normalizando características y transformando la variable objetivo, 
-    luego evalúa un modelo.
+    Prepares test data by normalizing features and transforming the target variable,
+    then evaluates a model.
     
-    parámetros:
+    Parameters:
     -----------
     df_test : pd.DataFrame
-        datos de prueba con características y variable objetivo
+        test data with features and target variable
     model : object
-        modelo entrenado para evaluar
+        trained model to evaluate
     normalization_params : dict, default=None
-        diccionario con parámetros de normalización 'mean' y 'std' del entrenamiento
-        si es None, no se aplica normalización
+        dictionary with 'mean' and 'std' normalization parameters from training
+        if None, normalization is not applied
     target_column : str, default='price'
-        nombre de la columna objetivo en df_test
+        name of the target column in df_test
     feature_columns : list, default=None
-        lista de columnas de características a usar. si es None, usa todas las columnas excepto la objetivo
+        list of feature columns to use. if None, uses all columns except the target
     transform_target_func : callable, default=None
-        función para transformar la variable objetivo (ej., np.log)
-        si es None, no se aplica transformación
+        function to transform the target variable (e.g., np.log)
+        if None, no transformation is applied
     inv_transform_pred : callable, default=None
-        función para transformar predicciones a escala original (ej., np.exp)
+        function to transform predictions back to original scale (e.g., np.exp)
     metrics : list, default=None
-        lista de funciones de métrica para calcular
+        list of metric functions to calculate
     print_metrics : bool, default=False
-        indica si se imprimen los resultados de las métricas formateados
+        indicates whether to print formatted metric results
     round_digits : int, default=4
-        número de decimales para redondear métricas al imprimir
+        number of decimal places to round metrics when printing
         
-    retorna:
+    Returns:
     --------
     tuple
         (metrics_dict, X_test, y_test, y_test_transformed)
-        - metrics_dict: diccionario con métricas de evaluación
-        - X_test: matriz de características procesada
-        - y_test: valores originales de la variable objetivo
-        - y_test_transformed: valores transformados de la variable objetivo (si se aplicó transformación)
+        - metrics_dict: dictionary with evaluation metrics
+        - X_test: processed feature matrix
+        - y_test: original target variable values
+        - y_test_transformed: transformed target variable values (if transformation was applied)
     """
     if feature_columns is None:
         feature_columns = [col for col in df_test.columns if col != target_column]
@@ -100,44 +100,44 @@ def train_and_evaluate_model(
     verbose=True
 ):
     """
-    Carga datos, preprocesa, entrena modelo y evalúa rendimiento.
+    Loads data, preprocesses, trains model and evaluates performance.
     
-    Parámetros:
+    Parameters:
     -----------
     target_column : str
-        Nombre de la columna objetivo
+        Name of the target column
     df : pd.DataFrame, default=None
-        DataFrame con los datos
+        DataFrame with the data
     data_path : str, default=None
-        Ruta al archivo CSV si no se proporciona df
+        Path to CSV file if df is not provided
     feature_columns : list, default=None
-        Lista de columnas de características a usar. Si es None, usa todas las columnas excepto la objetivo
+        List of feature columns to use. If None, uses all columns except the target
     test_size : float, default=0.2
-        Proporción de datos a usar para pruebas
+        Proportion of data to use for testing
     random_state : int, default=42
-        Semilla aleatoria para reproducibilidad
+        Random seed for reproducibility
     model_class : class, default=None
-        Clase del modelo a usar (debe tener métodos fit y predict)
+        Model class to use (must have fit and predict methods)
     normalize_features : bool, default=True
-        Indica si se estandarizan las características
+        Indicates whether to standardize features
     transform_target : callable, default=None
-        Función para transformar la variable objetivo
+        Function to transform the target variable
     inv_transform_pred : callable, default=None
-        Función para transformar predicciones a escala original
+        Function to transform predictions back to original scale
     fit_params : dict, default=None
-        Parámetros para pasar al método fit del modelo
+        Parameters to pass to the model's fit method
     metrics : list, default=None
-        Lista de funciones de métrica para calcular
+        List of metric functions to calculate
     verbose : bool, default=True
-        Indica si se imprimen los resultados
+        Indicates whether to print results
         
-    Retorna:
+    Returns:
     --------
     dict
-        Diccionario con modelo, divisiones de datos y métricas de evaluación
+        Dictionary with model, data splits and evaluation metrics
     """
     
-    # parámetros por defecto
+    # default parameters
     if fit_params is None:
         fit_params = {'method': 'gradient_descent', 'learning_rate': 0.01, 'epochs': 1000}
     
@@ -145,39 +145,39 @@ def train_and_evaluate_model(
         metrics = [mse_score, r2_score]
         
     if model_class is None:
-       raise Exception("Es necesario especificar el modelo")
+       raise Exception("Model specification is required")
     
     if transform_target and not inv_transform_pred:
-        raise Exception("Es necesario especificar la función de inv_transform_pred")
+        raise Exception("inv_transform_pred function must be specified")
     
-    # cargar y preparar datos
+    # load and prepare data
     X, y, feature_columns = load_and_prepare_data(
         target_column, df, data_path, feature_columns, transform_target
     )
     
-    # dividir datos
+    # split data
     X_train, X_test, y_train, y_test = split_test_train(
         X, y, test_size=test_size, random_state=random_state
     )
     
-    # normalizar características si se solicita
+    # normalize features if requested
     if normalize_features:
         X_train, X_test, normalization_params = normalize_data(X_train, X_test)
     
-    # entrenar modelo
+    # train model
     model = model_class()
     model.fit(X_train, y_train, **fit_params)
     
-    # predecir en conjunto de prueba
+    # predict on test set
     y_pred_test = model.predict(X_test)
     
-    # evaluar modelo
+    # evaluate model
     metrics_results = evaluate_model(model, X_test, y_test, metrics, inv_transform_pred, y_pred_test)
 
     if verbose:
         model.print_coefficients()
     
-    # preparar resultados
+    # prepare results
     results = {
         'model': model,
         'X_train': X_train,
@@ -197,34 +197,34 @@ def train_and_evaluate_model(
 def get_weights_and_metrics(X, y, lambdas, model_class, test_size=0.2, random_state=42, normalize=True, regularization='l2',
                             method='pseudo_inverse', inv_transform_pred=None, metrics=None):
     """
-    Obtiene los pesos del modelo y métricas de rendimiento para diferentes valores de lambda.
+    Gets model weights and performance metrics for different lambda values.
     
-    Parámetros:
+    Parameters:
     -----------
     X : pd.DataFrame
-        Matriz de características
+        Feature matrix
     y : pd.Series
-        Variable objetivo
+        Target variable
     lambdas : array-like
-        Valores del parámetro de regularización a probar
+        Regularization parameter values to test
     model_class : class
-        Clase del modelo a utilizar
+        Model class to use
     test_size : float, default=0.2
-        Proporción de datos a utilizar para pruebas
+        Proportion of data to use for testing
     random_state : int, default=42
-        Semilla aleatoria para reproducibilidad
+        Random seed for reproducibility
     normalize : bool, default=True
-        Indica si se normalizan las características
+        Indicates whether to normalize features
     regularization : str, default='l2'
-        Tipo de regularización a utilizar (l1 o l2)
+        Type of regularization to use (l1 or l2)
     method : str, default='pseudo_inverse'
-        Método a utilizar para resolver el sistema lineal
+        Method to use for solving the linear system
     inv_transform_pred : callable, default=None
-        Función para transformar las predicciones a la escala original
+        Function to transform predictions back to original scale
     metrics : list, default=None
-        Lista de funciones de métricas a calcular
+        List of metric functions to calculate
         
-    Retorna:
+    Returns:
     --------
     tuple
         (weights, mse_scores, r2_scores) arrays

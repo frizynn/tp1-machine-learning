@@ -7,11 +7,11 @@ from ..clustering.base import ClusteringModel
 class KMeans(ClusteringModel):
     def __init__(self, n_clusters=2, max_iter=100, tol=1e-4, random_state=42):
         """
-        Inicializa el K-Means con:
-          - n_clusters: número de clusters.
-          - max_iter: número máximo de iteraciones.
-          - tol: tolerancia para la convergencia.
-          - random_state: semilla para la aleatoriedad.
+        Initialize the K-Means with:
+          - n_clusters: number of clusters.
+          - max_iter: maximum number of iterations.
+          - tol: tolerance for convergence.
+          - random_state: seed for randomness.
         """
         super().__init__(n_clusters)
         self.max_iter = max_iter
@@ -21,20 +21,19 @@ class KMeans(ClusteringModel):
 
     def fit(self, X):
         """
-        Entrena el modelo K-Means.
+        Train the K-Means model.
         
-        Parámetros:
+        Parameters:
         -----------
-        X : array-like de shape (n_muestras, n_features)
-            Conjunto de datos a ajustar.
+        X : array-like of shape (n_samples, n_features)
+            Dataset to fit.
 
-        retorna:
+        Returns:
         --------
         self : KMeans
-            El modelo ajustado.
+            The fitted model.
         """
         
-
         np.random.seed(self.random_state)
 
         random_indices = np.random.choice(len(X), size=self.n_clusters, replace=False)
@@ -59,20 +58,20 @@ class KMeans(ClusteringModel):
 
     def predict(self, X):
         """
-        Predice las etiquetas de cluster para un conjunto de datos X.
-        Parámetros:
+        Predicts cluster labels for a dataset X.
+        Parameters:
         ----------
-        X : array-like de shape (n_muestras, n_features)
-            Conjunto de datos a predecir.
+        X : array-like of shape (n_samples, n_features)
+            Dataset to predict.
 
-        retorna:
+        Returns:
         --------
-        labels : array-like de shape (n_muestras,)
-            Etiquetas de cluster para cada muestra.
+        labels : array-like of shape (n_samples,)
+            Cluster labels for each sample.
         """
         
         if self.centroids_ is None:
-            raise ValueError("El modelo no ha sido ajustado aún. Ejecuta fit() primero.")
+            raise ValueError("Model has not been fitted yet. Run fit() first.")
         return np.array([np.argmin(np.sum((x - self.centroids_) ** 2, axis=1)) for x in X])
     
     @property
