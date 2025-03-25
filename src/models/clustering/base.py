@@ -9,7 +9,7 @@ class ClusteringModel:
             Number of clusters.
         """
         self.n_clusters = n_clusters
-        self.labels_ = None  
+        self.labels_ = None
 
     def fit(self, X):
         """
@@ -21,7 +21,9 @@ class ClusteringModel:
         X : array-like of shape (n_samples, n_features)
             Dataset to fit.
         """
-        raise NotImplementedError("The fit() method must be implemented in the subclass.")
+        raise NotImplementedError(
+            "The fit() method must be implemented in the subclass."
+        )
 
     def predict(self, X):
         """
@@ -33,7 +35,9 @@ class ClusteringModel:
         X : array-like of shape (n_samples, n_features)
             Dataset to predict.
         """
-        raise NotImplementedError("The predict() method must be implemented in the subclass.")
+        raise NotImplementedError(
+            "The predict() method must be implemented in the subclass."
+        )
 
     def fit_predict(self, X):
         """

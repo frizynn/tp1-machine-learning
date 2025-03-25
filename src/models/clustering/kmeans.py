@@ -18,12 +18,12 @@ class KMeans(ClusteringModel):
         self.max_iter = max_iter
         self.tol = tol
         self.random_state = random_state
-        self.centroids_ = None 
+        self.centroids_ = None
 
     def fit(self, X):
         """
         Train the K-Means model.
-        
+
         Parameters:
         -----------
         X : array-like of shape (n_samples, n_features)
@@ -34,7 +34,7 @@ class KMeans(ClusteringModel):
         self : KMeans
             The fitted model.
         """
-        
+
         np.random.seed(self.random_state)
 
         random_indices = np.random.choice(len(X), size=self.n_clusters, replace=False)
@@ -42,13 +42,17 @@ class KMeans(ClusteringModel):
 
         for i in range(self.max_iter):
 
-            labels = np.array([np.argmin(np.sum((x - centroids) ** 2, axis=1)) for x in X])
-            
-            new_centroids = np.array([
-                X[labels == j].mean(axis=0) if np.any(labels == j) else centroids[j]
-                for j in range(self.n_clusters)
-            ])
-            
+            labels = np.array(
+                [np.argmin(np.sum((x - centroids) ** 2, axis=1)) for x in X]
+            )
+
+            new_centroids = np.array(
+                [
+                    X[labels == j].mean(axis=0) if np.any(labels == j) else centroids[j]
+                    for j in range(self.n_clusters)
+                ]
+            )
+
             shift = np.sum((centroids - new_centroids) ** 2)
             centroids = new_centroids
             if shift < self.tol:
@@ -70,14 +74,14 @@ class KMeans(ClusteringModel):
         labels : array-like of shape (n_samples,)
             Cluster labels for each sample.
         """
-        
+
         if self.centroids_ is None:
             raise ValueError("Model has not been fitted yet. Run fit() first.")
-        return np.array([np.argmin(np.sum((x - self.centroids_) ** 2, axis=1)) for x in X])
-    
+        return np.array(
+            [np.argmin(np.sum((x - self.centroids_) ** 2, axis=1)) for x in X]
+        )
+
     @property
     def cluster_centers_(self):
         """Alias for centroids_ to maintain compatibility with sklearn"""
         return self.centroids_
-
-

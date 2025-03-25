@@ -12,15 +12,13 @@ class FitMethod(Enum):
     GRADIENT_DESCENT = "gradient_descent"
 
 
-
 class Model:
-    def __init__(self): 
+    def __init__(self):
         self.coef_ = None
         self.intercept_ = None
         self.feature_names = None
         self._training_info = {}
-        
-        
+
     def fit(self, X: pd.DataFrame, y: pd.Series):
         raise NotImplementedError
 
@@ -66,7 +64,6 @@ class Model:
             Model coefficients
         """
 
-
         return self._coef
 
     def get_coef_dict(self):
@@ -78,7 +75,11 @@ class Model:
         dict
             Dictionary with feature names and their coefficients
         """
-        if hasattr(self, 'feature_names') and self.feature_names is not None and self._coef is not None:
+        if (
+            hasattr(self, 'feature_names')
+            and self.feature_names is not None
+            and self._coef is not None
+        ):
             return dict(zip(self.feature_names, self._coef))
         return None
 
@@ -93,7 +94,7 @@ class Model:
         """
         if not hasattr(self, 'coef_dict') or self.coef_dict is None:
             return super().print_coefficients(format_precision)
-            
+
         print(f"Method: {self._training_info.get('method', 'unknown')}")
         print(f"Intercept: {self.intercept_:.{format_precision}f}\n")
         print("Coefficients:")
@@ -104,8 +105,9 @@ class Model:
 
         if self._training_info.get("method") == "gradient_descent":
             print(f"Convergence: {'Yes' if self._training_info['converged'] else 'No'}")
-            print(f"Iterations: {self._training_info['final_epoch']}/{self._training_info['epochs']}")
-
+            print(
+                f"Iterations: {self._training_info['final_epoch']}/{self._training_info['epochs']}"
+            )
 
     def get_training_info(self) -> Dict:
         """
@@ -117,5 +119,3 @@ class Model:
             Dictionary with information about the training
         """
         return self._training_info.copy()
-    
-  
